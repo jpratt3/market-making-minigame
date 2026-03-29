@@ -1,0 +1,3646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Market Maker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:      #0a0c0f;
+    --bg2:     #111318;
+    --bg3:     #181c22;
+    --bg4:     #1e232b;
+    --border:  #2a303a;
+    --border2: #353d48;
+    --text:    #e8edf2;
+    --text2:   #8892a0;
+    --text3:   #4a5568;
+    --green:   #00d084;
+    --green2:  #00a366;
+    --red:     #ff4757;
+    --red2:    #cc2233;
+    --amber:   #ffb020;
+    --blue:    #4a9eff;
+    --purple:  #a78bfa;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--mono); font-size: 13px;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg2); flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 20px; }
+  .logo { font-size: 13px; font-weight: 600; letter-spacing: 0.1em; }
+  .logo span { color: var(--green); }
+  .stock-price { font-size: 20px; font-weight: 600; }
+  .stock-change { font-size: 11px; }
+  .stock-change.up { color: var(--green); }
+  .stock-change.down { color: var(--red); }
+  .header-stats { display: flex; gap: 24px; align-items: center; }
+  .hstat { text-align: right; }
+  .hstat-label { font-size: 10px; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; }
+  .hstat-val { font-size: 15px; font-weight: 500; margin-top: 1px; }
+  .hstat-val.pos { color: var(--green); }
+  .hstat-val.neg { color: var(--red); }
+  .hstat-val.neu { color: var(--text); }
+  .hstat-val.amber { color: var(--amber); }
+
+  /* THREE COLUMN LAYOUT */
+  .main {
+    flex: 1; display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) 460px;
+    gap: 1px; background: var(--border);
+    overflow: hidden;
+  }
+
+  .panel { background: var(--bg2); overflow-y: auto; }
+  .panel-title {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    padding: 10px 14px 8px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg2); z-index: 1;
+  }
+
+  .centre-col {
+    display: flex; flex-direction: column;
+    align-items: stretch; padding: 12px;
+    gap: 10px; background: var(--bg); overflow-y: auto;
+  }
+
+  /* ---- GREEKS DASHBOARD ---- */
+  .greeks-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--border);
+  }
+  .greek-cell { background: var(--bg2); padding: 12px 14px; }
+  .greek-name {
+    font-size: 10px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 5px;
+  }
+  .greek-val { font-size: 20px; font-weight: 500; }
+  .greek-val.pos   { color: var(--green); }
+  .greek-val.neg   { color: var(--red); }
+  .greek-val.neu   { color: var(--text); }
+  .greek-val.amber { color: var(--amber); }
+  .greek-sub { font-size: 10px; color: var(--text3); margin-top: 4px; }
+  .greek-sub.warn  { color: var(--amber); }
+  .greek-sub.danger{ color: var(--red); }
+
+  /* Delta exposure bar */
+  .delta-bar-wrap {
+    height: 4px; background: var(--bg4); border-radius: 2px;
+    margin-top: 6px; overflow: hidden; position: relative;
+  }
+  .delta-bar {
+    height: 4px; border-radius: 2px; transition: width 0.3s, background 0.3s;
+    position: absolute;
+  }
+
+  /* ---- POSITIONS TABLE ---- */
+  .pos-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .pos-table th {
+    padding: 5px 10px; text-align: right; color: var(--text3);
+    font-weight: 400; letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 31px; background: var(--bg2);
+  }
+  .pos-table th:first-child { text-align: left; }
+  .pos-table td {
+    padding: 6px 10px; text-align: right;
+    border-bottom: 1px solid var(--border); color: var(--text2);
+  }
+  .pos-table td:first-child { text-align: left; color: var(--text); font-weight: 500; }
+  .pos-table tr:hover td { background: var(--bg3); }
+  .no-pos { padding: 16px 14px; color: var(--text3); font-size: 11px; text-align: center; }
+
+  /* ---- ORDER CARD ---- */
+  .order-card {
+    width: 100%;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 3px; overflow: hidden;
+  }
+  .timer-bar-wrap { height: 3px; background: var(--bg4); }
+  .timer-bar { height: 3px; background: var(--amber); transition: width 0.1s linear; }
+
+  .order-card-top {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .order-left { display: flex; align-items: center; gap: 10px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: 2px; letter-spacing: 0.06em;
+  }
+  .badge.call { background: rgba(74,158,255,0.15); color: var(--blue); border: 1px solid rgba(74,158,255,0.3); }
+  .badge.put  { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+  .order-name { font-size: 15px; font-weight: 600; }
+  .order-qty  { font-size: 12px; color: var(--text3); }
+  .order-timer-disp { font-size: 11px; color: var(--text3); }
+  .order-timer-disp span { color: var(--amber); font-weight: 600; }
+
+  .order-fields {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border);
+  }
+  .ofield { background: var(--bg2); padding: 10px 12px; }
+  .ofield-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .ofield-val   { font-size: 14px; font-weight: 500; }
+  .ofield-sub   { font-size: 11px; margin-top: 3px; }
+  .ofield-sub.cheap { color: var(--green); }
+  .ofield-sub.rich  { color: var(--red); }
+  .ofield-sub.neu   { color: var(--text3); }
+  .side-buy  { color: var(--green); }
+  .side-sell { color: var(--red); }
+
+  .order-greeks {
+    display: flex; gap: 16px; padding: 8px 14px;
+    border-top: 1px solid var(--border); background: var(--bg2);
+  }
+  .og { font-size: 11px; color: var(--text3); }
+  .og span { color: var(--text2); margin-left: 3px; }
+
+  /* Order impact preview */
+  .order-impact {
+    display: flex; gap: 16px; padding: 8px 14px;
+    border-top: 1px solid var(--border); background: var(--bg3);
+    font-size: 11px;
+  }
+  .impact-label { color: var(--text3); margin-right: 4px; }
+  .impact-val   { font-weight: 500; }
+
+  .bot-quotes {
+    display: flex; gap: 1px; background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+  .bq-cell { flex: 1; background: var(--bg3); padding: 7px 10px; text-align: center; }
+  .bq-name  { font-size: 9px; color: var(--text3); letter-spacing: 0.06em; margin-bottom: 3px; }
+  .bq-price { font-size: 12px; font-weight: 500; color: var(--text2); }
+  .bq-cell.best-bot .bq-price { color: var(--amber); }
+
+  .order-action {
+    display: flex; gap: 8px; align-items: center;
+    padding: 12px 14px; border-top: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .action-label { font-size: 11px; color: var(--text2); }
+  .price-input {
+    background: var(--bg); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    padding: 7px 10px; border-radius: 3px; width: 85px; text-align: center;
+  }
+  .price-input:focus { outline: none; border-color: var(--blue); }
+  .btn {
+    padding: 7px 14px; border-radius: 3px; cursor: pointer;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    transition: all 0.15s; border: 1px solid var(--border2);
+    background: var(--bg3); color: var(--text);
+  }
+  .btn:hover { background: var(--bg4); border-color: var(--text3); }
+  .btn.buy  { border-color: var(--green2); color: var(--green); }
+  .btn.buy:hover  { background: rgba(0,208,132,0.1); }
+  .btn.sell { border-color: var(--red2); color: var(--red); }
+  .btn.sell:hover { background: rgba(255,71,87,0.1); }
+  .action-hint { font-size: 11px; color: var(--text3); }
+
+  .reservation-notice {
+    font-size: 10px; color: var(--text3); padding: 5px 14px 8px;
+    background: var(--bg2);
+  }
+  .reservation-notice span { color: var(--amber); }
+
+  .order-idle {
+    height: 160px; display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 12px; letter-spacing: 0.06em;
+  }
+
+  /* FEEDBACK */
+  .feedback {
+    width: 100%;
+    padding: 10px 14px; border-radius: 3px;
+    font-size: 12px; line-height: 1.6;
+    border: 1px solid var(--border); background: var(--bg2); min-height: 40px;
+  }
+  .feedback.good { border-color: rgba(0,208,132,0.3); background: rgba(0,208,132,0.05); color: var(--green); }
+  .feedback.bad  { border-color: rgba(255,71,87,0.3);  background: rgba(255,71,87,0.05);  color: var(--red); }
+  .feedback.warn { border-color: rgba(255,176,32,0.3); background: rgba(255,176,32,0.05); color: var(--amber); }
+  .feedback.neu  { color: var(--text3); }
+
+  /* LOG */
+  .mini-log {
+    width: 100%; max-width: 560px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
+  }
+  .mini-log-title {
+    font-size: 10px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 8px 14px;
+    border-bottom: 1px solid var(--border); background: var(--bg3);
+  }
+  .log-row {
+    display: grid; grid-template-columns: 1fr auto auto auto;
+    gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--border);
+    font-size: 11px; align-items: center;
+  }
+  .log-row:last-child { border-bottom: none; }
+  .log-row.passed { opacity: 0.45; }
+  .log-row.lost   { opacity: 0.6; }
+
+  /* BOT LEADERBOARD */
+  .bot-card { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .bot-card:last-child { border-bottom: none; }
+  .bot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .bot-name { font-size: 12px; font-weight: 600; }
+  .bot-pnl  { font-size: 13px; font-weight: 500; }
+  .bot-pnl.pos { color: var(--green); }
+  .bot-pnl.neg { color: var(--red); }
+  .bot-stats { display: flex; gap: 10px; font-size: 10px; color: var(--text3); }
+  .bot-inv-bar-wrap { height: 3px; background: var(--bg4); margin-top: 5px; border-radius: 1px; overflow: hidden; }
+  .bot-inv-bar { height: 3px; border-radius: 1px; transition: width 0.3s, background 0.3s; }
+  .you-card {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    background: rgba(74,158,255,0.04); border-left: 2px solid var(--blue);
+  }
+  .you-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .you-name { font-size: 12px; font-weight: 600; color: var(--blue); }
+  .you-stats { display: flex; gap: 10px; font-size: 10px; color: var(--text3); }
+
+  /* LEARN MODE */
+  .learn {
+    position:fixed; top:0; left:0; width:100vw; height:100vh;
+    background:var(--bg); z-index:10000;
+    display:none; flex-direction:column;
+    overflow:hidden; box-sizing:border-box;
+  }
+  .learn.visible { display:flex; }
+  .learn-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 28px; border-bottom:1px solid var(--border);
+    background:var(--bg2); flex-shrink:0;
+  }
+  .learn-logo { font-size:13px; font-weight:600; letter-spacing:0.1em; color:var(--text3); }
+  .learn-logo span { color:var(--green); }
+  .learn-tabs {
+    display:flex; gap:2px; background:var(--bg3);
+    border:1px solid var(--border); border-radius:3px; padding:2px;
+  }
+  .learn-tab {
+    padding:5px 16px; border-radius:2px; cursor:pointer;
+    font-family:var(--mono); font-size:11px; color:var(--text3);
+    border:none; background:transparent; transition:all 0.15s;
+  }
+  .learn-tab.active { background:var(--bg2); color:var(--text); }
+  .learn-back {
+    font-size:11px; color:var(--text3); cursor:pointer;
+    background:none; border:1px solid var(--border); padding:5px 12px;
+    border-radius:3px; font-family:var(--mono); transition:all 0.15s;
+  }
+  .learn-back:hover { color:var(--text); border-color:var(--border2); }
+  .learn-body {
+    flex:1; overflow-y:auto; padding:32px 28px;
+    max-width:860px; margin:0 auto; width:100%;
+    box-sizing:border-box;
+  }
+
+  /* How to play */
+  .htp-section {
+    margin-bottom:32px;
+  }
+  .htp-title {
+    font-size:11px; font-weight:600; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--green);
+    margin-bottom:10px; padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  .htp-text {
+    font-size:13px; color:var(--text2); line-height:1.7;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .htp-text strong { color:var(--text); font-weight:600; }
+  .htp-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;
+  }
+  .htp-card {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:3px; padding:12px 14px;
+  }
+  .htp-card-title { font-size:11px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .htp-card-body  { font-size:11px; color:var(--text3); line-height:1.6;
+    font-family:'IBM Plex Sans', sans-serif; }
+  .htp-example {
+    background:var(--bg3); border:1px solid var(--border);
+    border-left:3px solid var(--green); border-radius:3px;
+    padding:10px 14px; margin-top:10px; font-size:12px;
+    color:var(--text2); line-height:1.6;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .htp-example strong { color:var(--green); }
+
+  /* Definitions */
+  .def-card {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:3px; margin-bottom:12px; overflow:hidden;
+  }
+  .def-card-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; cursor:pointer; transition:background 0.15s;
+  }
+  .def-card-header:hover { background:var(--bg3); }
+  .def-card-left { display:flex; align-items:center; gap:12px; }
+  .def-tag {
+    font-size:10px; font-weight:600; letter-spacing:0.06em;
+    padding:2px 8px; border-radius:2px; text-transform:uppercase;
+  }
+  .def-tag.greek  { background:rgba(74,158,255,0.12); color:var(--blue); border:1px solid rgba(74,158,255,0.3); }
+  .def-tag.vol    { background:rgba(255,176,32,0.12);  color:var(--amber); border:1px solid rgba(255,176,32,0.3); }
+  .def-tag.mm     { background:rgba(0,208,132,0.12);   color:var(--green); border:1px solid rgba(0,208,132,0.3); }
+  .def-tag.risk   { background:rgba(255,71,87,0.12);   color:var(--red);   border:1px solid rgba(255,71,87,0.3); }
+  .def-name { font-size:14px; font-weight:500; color:var(--text); }
+  .def-symbol { font-size:12px; color:var(--text3); }
+  .def-chevron { color:var(--text3); font-size:12px; transition:transform 0.2s; }
+  .def-card.open .def-chevron { transform:rotate(180deg); }
+  .def-body {
+    display:none; padding:14px 16px 16px;
+    border-top:1px solid var(--border); background:var(--bg);
+  }
+  .def-card.open .def-body { display:block; }
+  .def-plain {
+    font-size:13px; color:var(--text2); line-height:1.7; margin-bottom:10px;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .def-plain strong { color:var(--text); }
+  .def-example {
+    background:var(--bg2); border:1px solid var(--border);
+    border-left:3px solid var(--blue); border-radius:3px;
+    padding:8px 12px; font-size:11px; color:var(--text3); line-height:1.6;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .def-example strong { color:var(--blue); }
+  /* WELCOME SCREEN — light, clean, single scrollable page */
+  .welcome {
+    position:fixed; top:0; left:0; width:100vw; height:100vh;
+    background:#f0f2f5; z-index:10000;
+    overflow-y:auto; padding:0; box-sizing:border-box;
+    font-family:'IBM Plex Sans', sans-serif;
+    display:block;
+  }
+  .welcome-hero {
+    background:linear-gradient(135deg, #1a1d23 0%, #2a303a 100%);
+    padding:36px 40px 32px; text-align:center;
+  }
+  .welcome-hero-logo {
+    font-family:var(--mono); font-size:11px; font-weight:600;
+    letter-spacing:0.15em; text-transform:uppercase;
+    color:rgba(255,255,255,0.4); margin-bottom:10px;
+  }
+  .welcome-hero-logo span { color:var(--green); }
+  .welcome-hero-title {
+    font-size:28px; font-weight:700; color:#fff;
+    margin-bottom:8px; line-height:1.2;
+  }
+  .welcome-hero-sub {
+    font-size:14px; color:rgba(255,255,255,0.55);
+    max-width:520px; margin:0 auto; line-height:1.6;
+  }
+  .welcome-body { max-width:860px; margin:0 auto; padding:28px 24px 48px; }
+  .w-section-title {
+    font-size:11px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; color:#868e96;
+    margin-bottom:10px; margin-top:24px;
+  }
+  /* How to play mini cards */
+  .htp-mini-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:4px; }
+  .htp-mini-card { background:#fff; border-radius:8px; padding:14px 16px; border:1px solid #e9ecef; }
+  .htp-mini-icon { font-size:18px; margin-bottom:6px; }
+  .htp-mini-title { font-size:12px; font-weight:700; color:#1a1d23; margin-bottom:4px; }
+  .htp-mini-body  { font-size:11px; color:#868e96; line-height:1.5; }
+  /* Preset pills */
+  .preset-row { display:flex; gap:8px; margin-bottom:4px; }
+  .preset-pill {
+    flex:1; padding:12px 10px; border-radius:8px; cursor:pointer;
+    border:2px solid #e9ecef; background:#fff;
+    font-family:var(--mono); font-size:11px; color:#868e96;
+    text-align:center; transition:all 0.15s;
+  }
+  .preset-pill:hover { border-color:#adb5bd; color:#495057; }
+  .preset-pill.active.easy     { border-color:#00d084; color:#00a366; background:rgba(0,208,132,0.06); }
+  .preset-pill.active.medium   { border-color:#e8a020; color:#c07810; background:rgba(232,160,32,0.07); }
+  .preset-pill.active.hard     { border-color:#e8321a; color:#c02810; background:rgba(232,50,26,0.07); }
+  .preset-pill.active.veryhard { border-color:#5c0a14; color:#8a1020; background:rgba(92,10,20,0.08); }
+  .preset-pill.active.easy .pill-desc     { color:rgba(0,163,102,0.8); }
+  .preset-pill.active.medium .pill-desc   { color:rgba(192,120,16,0.9); }
+  .preset-pill.active.hard .pill-desc     { color:rgba(192,40,16,0.9); }
+  .preset-pill.active.veryhard .pill-desc { color:rgba(138,16,32,0.9); }
+  .preset-pill .pill-name { font-size:13px; font-weight:700; margin-bottom:3px; color:inherit; font-family:var(--mono); }
+  .preset-pill .pill-desc { font-size:11px; color:#adb5bd; line-height:1.5; font-family:'IBM Plex Sans', sans-serif; }
+  /* Settings card */
+  .settings-section { background:#fff; border-radius:8px; border:1px solid #e9ecef; overflow:hidden; margin-bottom:10px; }
+  .settings-header {
+    padding:10px 16px; border-bottom:1px solid #f1f3f5;
+    font-size:10px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; color:#adb5bd;
+    display:flex; justify-content:space-between; align-items:center;
+    background:#fafafa;
+  }
+  .settings-header .custom-badge {
+    font-size:9px; padding:2px 7px; border-radius:4px;
+    background:#fff3cd; color:#856404; border:1px solid #ffc107; display:none;
+  }
+  .settings-header .custom-badge.show { display:inline-block; }
+  .setting-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 16px; border-bottom:1px solid #f1f3f5;
+  }
+  .setting-row:last-child { border-bottom:none; }
+  .setting-label { font-size:13px; font-weight:500; color:#1a1d23; }
+  .setting-desc  { font-size:11px; color:#adb5bd; margin-top:2px; }
+  .setting-left  { flex:1; }
+  /* Light toggle */
+  .toggle-wrap { display:flex; align-items:center; gap:8px; }
+  .toggle { position:relative; width:40px; height:22px; cursor:pointer; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; inset:0; background:#dee2e6; border-radius:22px; transition:0.2s; }
+  .toggle-slider:before {
+    content:''; position:absolute; width:16px; height:16px; left:3px; top:3px;
+    background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle input:checked + .toggle-slider { background:#00d084; }
+  .toggle input:checked + .toggle-slider:before { transform:translateX(18px); }
+  /* Light range slider */
+  .range-wrap { display:flex; align-items:center; gap:10px; }
+  .range-val { font-size:12px; font-weight:600; color:#00a366; min-width:36px; text-align:right; }
+  input[type=range] {
+    -webkit-appearance:none; width:150px; height:4px;
+    background:#dee2e6; border-radius:2px; outline:none; border:none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:16px; height:16px;
+    border-radius:50%; background:#00d084; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  /* Events select */
+  .events-select {
+    background:#fff; border:1px solid #dee2e6; color:#1a1d23;
+    font-family:var(--mono); font-size:11px;
+    padding:5px 10px; border-radius:6px; cursor:pointer; outline:none;
+  }
+  /* Buttons */
+  .welcome-btns { display:flex; gap:10px; margin-top:20px; }
+  .start-btn {
+    flex:1; padding:15px; border-radius:8px; cursor:pointer;
+    font-family:var(--mono); font-size:14px; font-weight:700;
+    border:none; background:#00d084; color:#0a0c0f;
+    transition:all 0.15s; letter-spacing:0.04em;
+  }
+  .start-btn:hover { background:#00a366; color:#fff; }
+  .learn-btn {
+    padding:15px 24px; border-radius:8px; cursor:pointer;
+    font-family:var(--mono); font-size:13px; font-weight:500;
+    border:1px solid #dee2e6; background:#fff; color:#495057; transition:all 0.15s;
+  }
+  .learn-btn:hover { border-color:#adb5bd; color:#1a1d23; }
+  .event-banner {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+  }
+  .event-banner.visible {
+    max-height: 80px;
+    opacity: 1;
+  }
+  .event-banner-inner {
+    padding: 10px 20px;
+    display: flex; align-items: flex-start; gap: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .event-banner-inner.earnings  { background: rgba(255,71,87,0.08);  border-left: 3px solid var(--red); }
+  .event-banner-inner.ivspike   { background: rgba(255,176,32,0.08); border-left: 3px solid var(--amber); }
+  .event-banner-inner.flash     { background: rgba(255,71,87,0.12);  border-left: 3px solid var(--red); }
+  .event-banner-inner.volcrush  { background: rgba(74,158,255,0.08); border-left: 3px solid var(--blue); }
+  .event-banner-inner.sector    { background: rgba(167,139,250,0.08);border-left: 3px solid var(--purple); }
+  .event-tag {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; white-space: nowrap; padding-top: 1px;
+  }
+  .event-tag.earnings { color: var(--red); }
+  .event-tag.ivspike  { color: var(--amber); }
+  .event-tag.flash    { color: var(--red); }
+  .event-tag.volcrush { color: var(--blue); }
+  .event-tag.sector   { color: var(--purple); }
+  .event-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .event-advice { font-size: 11px; color: var(--text3); margin-top: 2px; font-style: italic; }
+
+  /* IV SURFACE */
+  .iv-surface {
+    width: 100%; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 3px;
+    overflow: hidden;
+  }
+  .iv-surface-title {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .iv-surface-title span { color: var(--text3); font-weight: 400; font-size: 10px; }
+  .iv-grid {
+    width: 100%; border-collapse: collapse; font-size: 11px;
+    font-family: var(--mono);
+  }
+  .iv-grid th {
+    padding: 5px 8px; text-align: center; color: var(--text3);
+    font-weight: 400; font-size: 10px; letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .iv-grid th:first-child { text-align: left; }
+  .iv-grid td {
+    padding: 6px 8px; text-align: center;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    font-size: 11px; font-weight: 500;
+    transition: background 0.3s;
+    cursor: default;
+  }
+  .iv-grid td:first-child {
+    text-align: left; color: var(--text2); font-size: 10px;
+    background: var(--bg3); font-weight: 400;
+  }
+  .iv-grid tr:last-child td { border-bottom: none; }
+  /* Heat map colors — green=low IV, amber=mid, red=high */
+  .iv-low    { color: var(--green);  background: rgba(0,208,132,0.08); }
+  .iv-mid    { color: var(--text);   background: rgba(255,176,32,0.06); }
+  .iv-high   { color: var(--amber);  background: rgba(255,176,32,0.12); }
+  .iv-spike  { color: var(--red);    background: rgba(255,71,87,0.12); }
+  /* Highlight the current order's cell */
+  .iv-grid td.iv-active {
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+
+  /* PAYOFF DIAGRAM */
+  .payoff-panel {
+    width: 100%; background: var(--bg2);
+    border: 1px solid var(--border); border-radius: 3px;
+    overflow: hidden;
+  }
+  .payoff-title {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .payoff-legend { display: flex; gap: 12px; font-size: 10px; }
+  .payoff-legend span { display: flex; align-items: center; gap: 4px; color: var(--text2); }
+  canvas#payoffChart { width: 100%; display: block; }
+  .payoff-toggle {
+    font-size: 10px; padding: 3px 10px; border-radius: 2px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg2); color: var(--text3);
+    font-family: var(--mono); transition: all 0.15s; letter-spacing: 0.04em;
+  }
+  .payoff-toggle:hover { border-color: var(--border2); color: var(--text2); }
+  .payoff-toggle.active { border-color: var(--green); color: var(--green); background: rgba(0,208,132,0.08); }
+
+  /* BID/ASK QUOTING */
+  .quote-row {
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 14px; border-top: 1px solid var(--border);
+    background: var(--bg2); flex-wrap: wrap;
+  }
+  .quote-side {
+    display: flex; flex-direction: column; gap: 4px; min-width: 100px;
+  }
+  .quote-side-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .quote-side-label.bid  { color: var(--green); }
+  .quote-side-label.ask  { color: var(--red); }
+  .quote-input {
+    background: var(--bg); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--mono); font-size: 14px;
+    padding: 8px 10px; border-radius: 3px; width: 90px; text-align: center;
+  }
+  .quote-input.bid:focus { outline: none; border-color: var(--green2); }
+  .quote-input.ask:focus { outline: none; border-color: var(--red2); }
+  .quote-input.blank { border-color: var(--border2); color: var(--text3); }
+  .quote-spread {
+    font-size: 11px; color: var(--text3); align-self: center;
+    min-width: 80px; text-align: center;
+  }
+  .quote-spread span { color: var(--text); font-weight: 500; }
+  .quote-submit {
+    display: flex; gap: 8px; align-items: center; margin-left: auto;
+  }
+  .diff-toggle {
+    display: flex; gap: 4px; margin-left: 8px;
+  }
+  .diff-pill {
+    font-size: 10px; padding: 3px 8px; border-radius: 2px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg3); color: var(--text3);
+    font-family: var(--mono); transition: all 0.15s;
+  }
+  .diff-pill.active { border-color: var(--green); color: var(--green); background: rgba(0,208,132,0.08); }
+  .blotter-table { width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed; }
+  .blotter-table th {
+    padding:5px 8px; text-align:right; color:var(--text3);
+    font-weight:400; letter-spacing:0.04em;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:31px; background:var(--bg2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .blotter-table th:first-child  { text-align:left; width:28%; }
+  .blotter-table th:nth-child(2) { width:14%; }
+  .blotter-table th:nth-child(3) { width:12%; }
+  .blotter-table th:nth-child(4) { width:12%; }
+  .blotter-table th:nth-child(5) { width:24%; }
+  .blotter-table th:nth-child(6) { width:10%; }
+  .blotter-table td {
+    padding:5px 8px; text-align:right;
+    border-bottom:1px solid var(--border); color:var(--text2); font-size:11px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .blotter-table td:first-child { text-align:left; color:var(--text); }
+  .blotter-table tr.b-passed { opacity:0.45; }
+  .blotter-table tr.b-lost   { opacity:0.6; }
+  .blotter-footer {
+    padding:8px 12px; border-top:1px solid var(--border);
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:11px; position:sticky; bottom:0; background:var(--bg2);
+  }
+
+  /* GAME OVER */
+  .game-over {
+    position:fixed; top:0; left:0;
+    width:100vw; height:100vh;
+    background:rgba(10,12,15,0.98);
+    display:none; flex-direction:column;
+    align-items:center; justify-content:flex-start;
+    z-index:9999; overflow-y:auto; padding:32px 40px;
+    box-sizing:border-box;
+  }
+  .go-inner { max-width:min(1100px,95vw); width:100%; margin:0 auto; }
+  .go-title { font-size:11px; font-weight:600; letter-spacing:0.15em; text-transform:uppercase; color:var(--text3); margin-bottom:6px; }
+  .go-pnl   { font-size:52px; font-weight:600; margin-bottom:24px; }
+  .go-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px; }
+  .go-cell  { background:var(--bg2); border:1px solid var(--border); padding:12px 14px; border-radius:3px; }
+  .go-cell-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+  .go-cell-val   { font-size:18px; font-weight:500; }
+  .go-lb    { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:20px; }
+  .go-lb-card {
+    background:var(--bg2); border:1px solid var(--border);
+    padding:10px; border-radius:3px; text-align:center;
+  }
+  .go-lb-card.you { border-color:var(--blue); background:rgba(74,158,255,0.06); }
+  .go-lb-name { font-size:11px; font-weight:600; margin-bottom:4px; }
+  .go-lb-pnl  { font-size:15px; font-weight:500; }
+  .go-lb-sub  { font-size:10px; color:var(--text3); margin-top:2px; }
+  .go-blotter { background:var(--bg2); border:1px solid var(--border); border-radius:3px; overflow:hidden; margin-bottom:20px; width:100%; }
+  .go-blotter-title { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.08em; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--bg3); }
+  .go-blotter .blotter-table { table-layout: fixed; width: 100%; }
+  .go-blotter .blotter-table th:first-child,
+  .go-blotter .blotter-table td:first-child  { width:16%; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .go-blotter .blotter-table th:nth-child(2),
+  .go-blotter .blotter-table td:nth-child(2) { width:10%; }
+  .go-blotter .blotter-table th:nth-child(3),
+  .go-blotter .blotter-table td:nth-child(3) { width:8%; }
+  .go-blotter .blotter-table th:nth-child(4),
+  .go-blotter .blotter-table td:nth-child(4) { width:8%; }
+  .go-blotter .blotter-table th:nth-child(5),
+  .go-blotter .blotter-table td:nth-child(5) { width:26%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .go-blotter .blotter-table th:nth-child(6),
+  .go-blotter .blotter-table td:nth-child(6) { width:8%; }
+  .go-blotter .blotter-table th:nth-child(7),
+  .go-blotter .blotter-table td:nth-child(7) { width:14%; text-align:left; }
+  .go-blotter-title { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.08em; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--bg3); }
+  .go-btns  { display:flex; gap:10px; }
+  .go-btn {
+    font-size:13px; padding:11px 28px; border-radius:3px;
+    cursor:pointer; font-family:var(--mono); font-weight:500; transition:all 0.15s;
+  }
+  .go-btn.primary   { background:var(--green); border:none; color:var(--bg); }
+  .go-btn.primary:hover { background:var(--green2); }
+  .go-btn.secondary { background:var(--bg3); border:1px solid var(--border2); color:var(--text); }
+  .go-btn.secondary:hover { border-color:var(--text3); }
+
+  .step-label {
+    position: fixed; bottom: 12px; left: 14px;
+    font-size: 10px; color: var(--text3); letter-spacing: 0.08em; pointer-events: none;
+  }
+
+  /* HEDGE PANEL */
+  .hedge-section { padding: 12px 14px; }
+  .hedge-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; font-size: 11px;
+  }
+  .hedge-label { color: var(--text3); }
+  .hedge-val   { font-weight: 500; color: var(--text); }
+  .hedge-val.pos { color: var(--green); }
+  .hedge-val.neg { color: var(--red); }
+  .hedge-btns  { display: flex; gap: 6px; margin-top: 4px; }
+  .hbtn {
+    flex: 1; padding: 7px 6px; border-radius: 3px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    transition: all 0.15s; border: 1px solid var(--border2);
+    background: var(--bg3); color: var(--text); text-align: center;
+  }
+  .hbtn:hover { background: var(--bg4); border-color: var(--text3); }
+  .hbtn.flat  { border-color: var(--amber); color: var(--amber); }
+  .hbtn.flat:hover  { background: rgba(255,176,32,0.1); }
+  .hbtn.buy   { border-color: var(--green2); color: var(--green); }
+  .hbtn.buy:hover   { background: rgba(0,208,132,0.1); }
+  .hbtn.sell  { border-color: var(--red2); color: var(--red); }
+  .hbtn.sell:hover  { background: rgba(255,71,87,0.1); }
+  .hedge-last { font-size: 10px; color: var(--text3); margin-top: 6px; min-height: 14px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">OPTIONS <span>MM</span></div>
+    <div>
+      <div class="stock-price" id="stockPrice">$185.00</div>
+      <div class="stock-change" id="stockChange">+0.00 (0.00%)</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);">
+      IV: <span id="ivDisplay" style="color:var(--amber);">25.0%</span>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="hstat">
+      <div class="hstat-label">Spread Income</div>
+      <div class="hstat-val pos" id="spreadIncome">+$0.00</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Greeks P&L</div>
+      <div class="hstat-val neu" id="greeksPnl">+$0.00</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Total P&L</div>
+      <div class="hstat-val neu" id="totalPnl">+$0.00</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Filled / Lost</div>
+      <div class="hstat-val neu" id="fillLost">0 / 0</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Time</div>
+      <div class="hstat-val neu" id="gameTimer">5:00</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Rank</div>
+      <div class="hstat-val neu" id="rankDisplay">— of 5</div>
+    </div>
+    <div class="hstat">
+      <button onclick="toggleTestMode()" id="testModeBtn"
+        style="background:var(--bg3);border:1px solid var(--border2);color:var(--text3);
+               font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:3px;
+               cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">
+        Test Mode: OFF
+      </button>
+    </div>
+    <div class="hstat">
+      <button onclick="toggleFeedback()" id="feedbackBtn"
+        style="background:var(--bg3);border:1px solid var(--green2);color:var(--green);
+               font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:3px;
+               cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">
+        Feedback: ON
+      </button>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Quote Mode</div>
+      <div class="diff-toggle">
+        <button class="diff-pill active" id="diff-easy"     onclick="setDiff('easy')">E</button>
+        <button class="diff-pill"        id="diff-medium"   onclick="setDiff('medium')">M</button>
+        <button class="diff-pill"        id="diff-hard"     onclick="setDiff('hard')">H</button>
+        <button class="diff-pill"        id="diff-veryhard" onclick="setDiff('veryhard')">VH</button>
+      </div>
+    </div>
+    <div class="hstat">
+      <button onclick="diffMode==='easy'?alert('Switch to Medium or higher to trigger events'):fireRandomEvent()"
+        style="background:var(--bg3);border:1px solid var(--border2);color:var(--text3);
+               font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:3px;
+               cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">
+        Fire Event
+      </button>
+      <button onclick="fireSpecificEvent('flash')"
+        style="background:var(--bg3);border:1px solid var(--red2);color:var(--red);
+               font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:3px;
+               cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">
+        Flash Crash
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- EVENT BANNER -->
+<div class="event-banner" id="eventBanner">
+  <div class="event-banner-inner" id="eventBannerInner">
+    <div class="event-tag" id="eventTag"></div>
+    <div>
+      <div class="event-desc" id="eventDesc"></div>
+      <div class="event-advice" id="eventAdvice"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN: 3 columns -->
+<div class="main">
+
+  <!-- LEFT: Greeks dashboard + positions -->
+  <div class="panel">
+
+    <div class="panel-title">Portfolio Greeks</div>
+    <div class="greeks-grid">
+
+      <div class="greek-cell">
+        <div class="greek-name">Delta (Δ)</div>
+        <div class="greek-val neu" id="gDelta">0.00</div>
+        <div class="greek-sub" id="gDeltaSub">$0 exposure</div>
+        <div class="delta-bar-wrap">
+          <div class="delta-bar" id="deltaBar" style="width:0%;left:50%;background:var(--green);"></div>
+        </div>
+      </div>
+
+      <div class="greek-cell">
+        <div class="greek-name">Gamma (Γ)</div>
+        <div class="greek-val neu" id="gGamma">0.000</div>
+        <div class="greek-sub" id="gGammaSub">Δ change per $1 move</div>
+      </div>
+
+      <div class="greek-cell">
+        <div class="greek-name">Theta (Θ)</div>
+        <div class="greek-val neu" id="gTheta">$0.00</div>
+        <div class="greek-sub" id="gThetaSub">—</div>
+      </div>
+
+      <div class="greek-cell">
+        <div class="greek-name">Vega (ν)</div>
+        <div class="greek-val neu" id="gVega">$0.00</div>
+        <div class="greek-sub" id="gVegaSub">value / 1% IV move</div>
+      </div>
+
+    </div>
+
+    <div class="panel-title" style="margin-top:1px;">Greeks P&L Breakdown</div>
+    <div class="greeks-grid">
+      <div class="greek-cell">
+        <div class="greek-name">Delta P&L</div>
+        <div class="greek-val neu" id="pnlDelta">$0.00</div>
+        <div class="greek-sub">from stock moves</div>
+      </div>
+      <div class="greek-cell">
+        <div class="greek-name">Gamma P&L</div>
+        <div class="greek-val neu" id="pnlGamma">$0.00</div>
+        <div class="greek-sub">convexity</div>
+      </div>
+      <div class="greek-cell">
+        <div class="greek-name">Theta / Day</div>
+        <div class="greek-val neu" id="pnlTheta">$0.00</div>
+        <div class="greek-sub" id="pnlThetaSub">daily decay if held overnight</div>
+      </div>
+      <div class="greek-cell">
+        <div class="greek-name">Vega P&L</div>
+        <div class="greek-val neu" id="pnlVega">$0.00</div>
+        <div class="greek-sub">from IV moves</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTRE: order card + feedback + log -->
+  <div class="centre-col">
+
+    <div class="order-card" id="orderCard">
+      <div class="order-idle">Waiting for first order...</div>
+    </div>
+
+    <div class="feedback neu" id="feedback">Fill an order to see feedback here.</div>
+
+    <!-- IV SURFACE — Hard/VH only -->
+    <div class="iv-surface" id="ivSurfacePanel" style="display:none;">
+      <div class="iv-surface-title">
+        IV Surface
+        <span id="ivSurfaceSubtitle">ATM IV: 25.0% · Smile active</span>
+      </div>
+      <table class="iv-grid" id="ivSurfaceTable">
+        <!-- populated by renderIVSurface() -->
+      </table>
+    </div>
+
+    <!-- PAYOFF DIAGRAM -->
+    <div class="payoff-panel">
+      <div class="payoff-title">
+        Live Payoff at Expiry
+        <div class="payoff-legend">
+          <span><svg width="16" height="3"><line x1="0" y1="1.5" x2="16" y2="1.5" stroke="#00d084" stroke-width="2"/></svg> Total P&L</span>
+          <span><svg width="16" height="3"><line x1="0" y1="1.5" x2="16" y2="1.5" stroke="#4a9eff" stroke-width="1" stroke-dasharray="4,2"/></svg> Break-even</span>
+          <span id="payoffCurrentPx" style="color:var(--amber);">S: $185.00</span>
+        </div>
+      </div>
+      <canvas id="payoffChart" height="140"></canvas>
+      <div style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid var(--border);background:var(--bg3);flex-wrap:wrap;">
+        <button class="payoff-toggle active" id="tog-strikes"    onclick="togglePayoff('strikes')">Strikes</button>
+        <button class="payoff-toggle"        id="tog-breakeven"  onclick="togglePayoff('breakeven')">Break-evens</button>
+        <button class="payoff-toggle"        id="tog-today"      onclick="togglePayoff('today')">Today vs Expiry</button>
+        <button class="payoff-toggle"        id="tog-perpos"     onclick="togglePayoff('perpos')">Per Position</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: positions + slim blotter -->
+  <div class="panel" style="display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- Positions -->
+    <table class="pos-table" style="width:100%;border-collapse:collapse;display:flex;flex-direction:column;flex:0 0 auto;max-height:40%;">
+      <thead style="flex-shrink:0;display:table;width:100%;table-layout:fixed;">
+        <tr>
+          <th style="text-align:left;padding:10px 10px 8px;font-size:10px;color:var(--text3);letter-spacing:0.06em;text-transform:uppercase;border-bottom:1px solid var(--border);" colspan="5">Positions</th>
+        </tr>
+        <tr>
+          <th style="text-align:left;">Contract</th>
+          <th>Qty</th>
+          <th>Avg</th>
+          <th>Delta</th>
+          <th>MtM</th>
+        </tr>
+      </thead>
+      <tbody id="posBody" style="flex:1;overflow-y:auto;display:block;width:100%;">
+        <tr style="display:table;width:100%;table-layout:fixed;"><td colspan="5" class="no-pos">No positions yet</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Slim live blotter -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;border-top:2px solid var(--border);">
+      <table class="blotter-table" style="width:100%;border-collapse:collapse;display:flex;flex-direction:column;height:100%;">
+        <thead style="flex-shrink:0;display:table;width:100%;table-layout:fixed;background:var(--bg2);">
+          <tr>
+            <th style="text-align:left;padding:10px 10px 8px;font-size:10px;color:var(--text3);letter-spacing:0.06em;text-transform:uppercase;border-bottom:1px solid var(--border);" colspan="4">Recent Trades</th>
+          </tr>
+          <tr>
+            <th style="text-align:left;">Contract</th>
+            <th>Side</th>
+            <th>Price</th>
+            <th>Edge</th>
+          </tr>
+        </thead>
+        <tbody id="blotterBody" style="flex:1;overflow-y:auto;display:block;width:100%;">
+          <tr style="display:table;width:100%;table-layout:fixed;"><td colspan="4" style="text-align:center;padding:20px;color:var(--text3);">No trades yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="step-label">STEP 17A — WELCOME SCREEN</div>
+
+<!-- LEARN MODE -->
+<div class="learn" id="learnScreen">
+  <div class="learn-header">
+    <div class="learn-logo">OPTIONS <span>MM</span> — Learn</div>
+    <div class="learn-tabs">
+      <button class="learn-tab active" id="tab-htp" onclick="switchLearnTab('htp')">How to Play</button>
+      <button class="learn-tab" id="tab-defs" onclick="switchLearnTab('defs')">Definitions</button>
+    </div>
+    <button class="learn-back" onclick="closeLearn()">← Back to Menu</button>
+  </div>
+
+  <!-- HOW TO PLAY -->
+  <div class="learn-body" id="learn-htp">
+
+    <div class="htp-section">
+      <div class="htp-title">What is this game?</div>
+      <div class="htp-text">
+        You are a <strong>market maker</strong> on an options desk. Your job is to quote prices to clients who want to buy or sell options — and to make money from the spread between your bid and ask price.<br><br>
+        Every few seconds a client arrives wanting to buy or sell an option on a stock. You see the contract details, assess whether it's priced fairly, quote your bid and ask, and decide whether to fill the order. After filling, you manage your Greeks exposure — especially delta — to avoid taking too much directional risk.
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Reading an Incoming Order</div>
+      <div class="htp-text">Each order shows you the following information:</div>
+      <div class="htp-grid">
+        <div class="htp-card">
+          <div class="htp-card-title">Client wants to BUY / SELL</div>
+          <div class="htp-card-body">Whether the client is buying or selling the option. This determines which side of your quote they hit — buys hit your ask, sells hit your bid.</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Strike & Expiry</div>
+          <div class="htp-card-body">The strike price ($175–$195) and days to expiry (7, 14, 30, or 60 days). These determine the option's value and Greeks.</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Suggested Price</div>
+          <div class="htp-card-body">The price the client is showing. This may be above or below fair value — your job is to spot the difference and price accordingly.</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Fair Value & Cheap/Rich</div>
+          <div class="htp-card-body">Black-Scholes fair value and whether the suggested price is cheap or rich vs fair. <strong>Rich + client buying = good sell. Cheap + client selling = good buy.</strong></div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Greeks Preview</div>
+          <div class="htp-card-body">Shows how filling this order would affect your portfolio delta, and what theta and vega exposure you'd be taking on.</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Competing Bot Quotes</div>
+          <div class="htp-card-body">Four competing bots also quote the market. To win the fill, your ask must be lower than theirs (client buy) or your bid higher (client sell).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Quoting Bid & Ask</div>
+      <div class="htp-text">
+        You quote <strong>two prices simultaneously</strong> — a bid (price you'll buy at) and an ask (price you'll sell at). The spread between them is your edge per trade.<br><br>
+        When a client wants to <strong>buy</strong>, they hit your <strong>ask</strong>. When they want to <strong>sell</strong>, they hit your <strong>bid</strong>. You only need to enter the relevant side — the game highlights which button to press.
+      </div>
+      <div class="htp-example">
+        <strong>Example:</strong> Fair value = $5.00. You quote $4.95 bid / $5.08 ask. Client wants to buy → hits your ask at $5.08 → you sold $0.08 above fair → <strong>+$8 edge</strong> per contract (100 shares × $0.08).
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Managing Delta Exposure</div>
+      <div class="htp-text">
+        Every option you fill adds delta to your portfolio — directional exposure to the stock price. If you don't hedge, a stock move can wipe out all your spread income.<br><br>
+        The <strong>Stock Hedge</strong> panel shows your net delta in share equivalents. Use <strong>Flatten Δ</strong> to automatically trade the shares needed to neutralise it, or Buy/Sell 50 shares manually.
+      </div>
+      <div class="htp-example">
+        <strong>Example:</strong> You sold 3 calls with delta 0.5 each = −150 delta (short). Stock rises $1 → you lose $150. Buy 150 shares to flatten → now neutral. Stock can move freely without hurting you.
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Scoring & P&L</div>
+      <div class="htp-text">
+        Your total P&L has two components:
+      </div>
+      <div class="htp-grid">
+        <div class="htp-card">
+          <div class="htp-card-title">Spread Income</div>
+          <div class="htp-card-body">Edge captured from quoting — the difference between your fill price and fair value. This should always be positive if you're quoting correctly.</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-title">Greeks P&L</div>
+          <div class="htp-card-body">P&L from your options positions moving with the market — delta, gamma, theta, vega. Keep this small through disciplined hedging.</div>
+        </div>
+      </div>
+      <div class="htp-example">
+        A good market maker has <strong>large positive spread income</strong> and <strong>Greeks P&L near zero</strong>. If your Greeks P&L is large and negative, you're taking too much directional risk and not hedging enough.
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Market Events</div>
+      <div class="htp-text">
+        On Medium difficulty and above, random events fire during the session — IV spikes, flash crashes, earnings surprises, vol crushes, and sector shocks. These simulate real market shocks you'd face on a trading desk.<br><br>
+        On Easy and Medium, a banner appears with advice on how to respond. On Hard and Very Hard, the banner shows what happened but you must decide how to react yourself.
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-title">Live Payoff Diagram</div>
+      <div class="htp-text">
+        The chart below the order card shows your portfolio's P&L at option expiry across a range of stock prices. Use the toggles to show strike markers, break-even prices, today's BS-priced value vs expiry intrinsic value, and individual position lines.<br><br>
+        This tells you instantly: if the stock ends up at $X, how much do I make or lose?
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DEFINITIONS -->
+  <div class="learn-body" id="learn-defs" style="display:none;">
+
+    <div style="font-size:13px;color:var(--text3);margin-bottom:20px;font-family:'IBM Plex Sans',sans-serif;">
+      Click any term to expand its definition. These are written for someone new to options — no jargon.
+    </div>
+
+    <!-- Greeks -->
+    <div class="def-card" id="def-delta">
+      <div class="def-card-header" onclick="toggleDef('delta')">
+        <div class="def-card-left">
+          <span class="def-tag greek">Greek</span>
+          <span class="def-name">Delta</span>
+          <span class="def-symbol">Δ</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Delta measures <strong>how much an option's price moves when the stock moves $1</strong>. A call with delta 0.5 gains $0.50 when the stock rises $1. A put with delta −0.4 gains $0.40 when the stock falls $1.<br><br>
+          As a market maker, your <strong>net portfolio delta</strong> tells you your total directional exposure. Long delta = you profit when the stock rises. Short delta = you profit when it falls. The goal is to stay near zero through hedging.
+        </div>
+        <div class="def-example">
+          <strong>At Optiver:</strong> If you're asked "what's your delta?" they mean: how many shares equivalent of directional risk are you carrying right now?
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-gamma">
+      <div class="def-card-header" onclick="toggleDef('gamma')">
+        <div class="def-card-left">
+          <span class="def-tag greek">Greek</span>
+          <span class="def-name">Gamma</span>
+          <span class="def-symbol">Γ</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Gamma measures <strong>how fast your delta changes</strong> when the stock moves. High gamma means a $1 move in the stock significantly changes your delta — your hedge goes stale quickly and needs frequent adjustment.<br><br>
+          <strong>Short gamma</strong> (selling options) means large moves in either direction hurt you — your delta moves away from neutral faster than you can hedge. <strong>Long gamma</strong> (buying options) means large moves help you.
+        </div>
+        <div class="def-example">
+          <strong>In practice:</strong> A short gamma MM who doesn't hedge after a flash crash can see losses compound rapidly as delta drifts further from neutral with each stock move.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-theta">
+      <div class="def-card-header" onclick="toggleDef('theta')">
+        <div class="def-card-left">
+          <span class="def-tag greek">Greek</span>
+          <span class="def-name">Theta</span>
+          <span class="def-symbol">Θ</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Theta measures <strong>how much an option loses in value each day</strong> from time passing. Options have a time premium that erodes daily — by expiry, they're worth only their intrinsic value.<br><br>
+          <strong>Selling options</strong> earns positive theta — you collect this daily decay. <strong>Buying options</strong> pays negative theta — time works against you. Most MMs are net short options and earn theta as a steady income stream.
+        </div>
+        <div class="def-example">
+          <strong>The tradeoff:</strong> Positive theta from selling options comes with short vega exposure. If IV spikes, your short options become more expensive to buy back — the theta you earned can be wiped out quickly.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-vega">
+      <div class="def-card-header" onclick="toggleDef('vega')">
+        <div class="def-card-left">
+          <span class="def-tag greek">Greek</span>
+          <span class="def-name">Vega</span>
+          <span class="def-symbol">ν</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Vega measures <strong>how much an option's value changes per 1% move in implied volatility</strong>. If your vega is −$15 and IV rises 1%, you lose $15.<br><br>
+          Selling options makes you <strong>short vega</strong>. If the market becomes fearful and IV rises — like during an IV Spike event — short vega positions lose money even if the stock doesn't move.
+        </div>
+        <div class="def-example">
+          <strong>Key insight:</strong> Theta and vega are linked. Selling options gives you positive theta but negative vega. You're paid daily decay in exchange for taking on the risk of IV rising against you.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-iv">
+      <div class="def-card-header" onclick="toggleDef('iv')">
+        <div class="def-card-left">
+          <span class="def-tag vol">Volatility</span>
+          <span class="def-name">Implied Volatility</span>
+          <span class="def-symbol">IV</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Implied volatility is <strong>the market's expectation of how much the stock will move</strong>, expressed as an annualised percentage. It's called "implied" because it's derived from current option prices — you work backwards from the price to find what volatility the market is pricing in.<br><br>
+          Higher IV = more expensive options. IV spikes during uncertainty (before earnings, during crises) and crushes after events resolve. The fair IV in this game is 25% — meaning the market expects the stock to move roughly 25% per year.
+        </div>
+        <div class="def-example">
+          <strong>In the game:</strong> When an IV Spike event fires, IV jumps from 25% to 40–60%. All options become more expensive. If you're short options, your positions are now worth more to buy back — a loss.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-ivsurface">
+      <div class="def-card-header" onclick="toggleDef('ivsurface')">
+        <div class="def-card-left">
+          <span class="def-tag vol">Volatility</span>
+          <span class="def-name">IV Surface / Vol Smile</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          In reality, <strong>different options on the same stock trade at different IVs</strong> depending on their strike and expiry. This creates a "surface" of IVs across strikes and expiries.<br><br>
+          <strong>The smile/skew:</strong> OTM puts trade at higher IV than ATM options because funds pay a premium for crash protection. OTM calls also trade at slightly elevated IV. The ATM strike has the lowest IV — this is the "volatility smile".<br><br>
+          <strong>Term structure:</strong> Short-dated options often carry higher IV than long-dated in stressed markets. On Hard/VH, you use the surface to price orders without being told the fair value directly.
+        </div>
+        <div class="def-example">
+          <strong>Reading the surface:</strong> If the $175 put (OTM) shows 28% IV and the $185 ATM shows 24% IV, the put has a 4% vol premium. An order showing 30% IV for the $175 put is rich — you should sell it.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-bidask">
+      <div class="def-card-header" onclick="toggleDef('bidask')">
+        <div class="def-card-left">
+          <span class="def-tag mm">Market Making</span>
+          <span class="def-name">Bid/Ask Spread & Edge</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          The <strong>bid</strong> is the price you'll buy at. The <strong>ask</strong> is the price you'll sell at. The spread between them is your profit margin per round-trip trade.<br><br>
+          <strong>Edge</strong> is the difference between your fill price and the option's fair value. Buy below fair value or sell above fair value — that's positive edge. Do the opposite — that's negative edge, and you're giving money away.<br><br>
+          The tighter you quote vs bots, the more fills you win — but with less edge per fill. Too wide, and bots undercut you and take every order.
+        </div>
+        <div class="def-example">
+          <strong>Example:</strong> Fair value $5.00. You quote $4.94 / $5.06. Client buys at your ask $5.06 → edge = $5.06 − $5.00 = $0.06 × 100 shares = <strong>$6 per contract</strong>.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-mm">
+      <div class="def-card-header" onclick="toggleDef('mm')">
+        <div class="def-card-left">
+          <span class="def-tag mm">Market Making</span>
+          <span class="def-name">Market Making</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          A market maker <strong>continuously quotes prices to buy and sell</strong> — providing liquidity to the market. Unlike a directional trader who bets on where the market goes, a MM profits from the spread between bid and ask regardless of direction.<br><br>
+          The risk: you don't choose your customers. Sometimes you're trading against someone who knows something you don't — an informed trader. Your edge comes from quoting many orders and law of large numbers, not from any single trade.
+        </div>
+        <div class="def-example">
+          <strong>At Optiver/IMC:</strong> Traders quote thousands of options simultaneously, managing Greeks across their entire book in real time. The game simulates this one order at a time — in reality it's all at once.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-hedge">
+      <div class="def-card-header" onclick="toggleDef('hedge')">
+        <div class="def-card-left">
+          <span class="def-tag mm">Market Making</span>
+          <span class="def-name">Delta Hedging</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Delta hedging means <strong>trading the underlying stock to neutralise your options' directional exposure</strong>. If your options give you +80 delta (long exposure), you sell 80 shares to get back to neutral.<br><br>
+          After hedging, small stock moves don't hurt you — your options gain/lose roughly what your stock position loses/gains. You then earn from gamma (if long) or theta (if short) rather than from the stock's direction.
+        </div>
+        <div class="def-example">
+          <strong>Why it matters:</strong> Without hedging, you're just a directional trader with options. With hedging, you isolate the spread income and vol exposure — the actual MM edge — from random stock movements.
+        </div>
+      </div>
+    </div>
+
+    <div class="def-card" id="def-toxicflow">
+      <div class="def-card-header" onclick="toggleDef('toxicflow')">
+        <div class="def-card-left">
+          <span class="def-tag risk">Risk</span>
+          <span class="def-name">Toxic Flow & Informed Trading</span>
+        </div>
+        <span class="def-chevron">▼</span>
+      </div>
+      <div class="def-body">
+        <div class="def-plain">
+          Toxic flow is <strong>order flow from informed traders</strong> — people who know something about the stock's future direction that you don't. They consistently buy calls before rallies and puts before crashes, picking you off every time you fill their orders.<br><br>
+          The tell is a pattern: if you see 3+ consecutive call buys or put buys, someone may be informed. Real MMs widen their spreads or stop quoting when they detect toxic flow to avoid being systematically picked off.
+        </div>
+        <div class="def-example">
+          <strong>In the game:</strong> On Medium difficulty, the game warns you when it detects suspicious directional flow. On Very Hard, you must detect it yourself and decide whether to keep quoting or pass.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- WELCOME SCREEN -->
+<div class="welcome" id="welcomeScreen">
+
+  <!-- Dark hero header -->
+  <div class="welcome-hero">
+    <div class="welcome-hero-title">Options Market Making Minigame</div>
+    <div class="welcome-hero-sub">
+      Quote bid/ask spreads, manage Greeks, delta hedge, and compete against bots.
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="welcome-body">
+
+    <!-- How it works -->
+    <div class="w-section-title" style="margin-top:0;">How it works</div>
+    <div class="htp-mini-grid">
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">📋</div>
+        <div class="htp-mini-title">Orders arrive</div>
+        <div class="htp-mini-body">A client wants to buy or sell an option. You see the contract details and a suggested price.</div>
+      </div>
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">💱</div>
+        <div class="htp-mini-title">Quote bid & ask</div>
+        <div class="htp-mini-body">Enter your bid and ask price. Compete against 4 bot market makers. Tighter quotes win fills.</div>
+      </div>
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">⚖️</div>
+        <div class="htp-mini-title">Manage Greeks</div>
+        <div class="htp-mini-body">Delta hedge with stock to stay neutral. Earn from spread income, not directional bets.</div>
+      </div>
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">📊</div>
+        <div class="htp-mini-title">Track edge</div>
+        <div class="htp-mini-body">Buy below fair value or sell above it — that's your edge. Avoid filling bad-sided orders.</div>
+      </div>
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">⚡</div>
+        <div class="htp-mini-title">Market events</div>
+        <div class="htp-mini-body">IV spikes, flash crashes, sector shocks. React quickly and adjust your hedges.</div>
+      </div>
+      <div class="htp-mini-card">
+        <div class="htp-mini-icon">🏆</div>
+        <div class="htp-mini-title">Score</div>
+        <div class="htp-mini-body">Total P&L = spread income + Greeks P&L. Good MMs have high spread income and low Greeks risk.</div>
+      </div>
+    </div>
+
+    <!-- Difficulty -->
+    <div class="w-section-title">Difficulty</div>
+    <div class="preset-row">
+      <div class="preset-pill easy active" id="preset-easy" onclick="applyPreset('easy')">
+        <div style="font-size:20px;margin-bottom:4px;">🌱</div>
+        <div class="pill-name">Easy</div>
+        <div class="pill-desc">Fair value shown. Pre-filled quotes. No events.</div>
+      </div>
+      <div class="preset-pill medium" id="preset-medium" onclick="applyPreset('medium')">
+        <div style="font-size:20px;margin-bottom:4px;">🔥</div>
+        <div class="pill-name">Medium</div>
+        <div class="pill-desc">No cheap/rich label. Mild events with advice.</div>
+      </div>
+      <div class="preset-pill hard" id="preset-hard" onclick="applyPreset('hard')">
+        <div style="font-size:20px;margin-bottom:4px;">⚡</div>
+        <div class="pill-name">Hard</div>
+        <div class="pill-desc">Blank quotes. IV surface. Full events, no advice.</div>
+      </div>
+      <div class="preset-pill veryhard" id="preset-veryhard" onclick="applyPreset('veryhard')">
+        <div style="font-size:20px;margin-bottom:4px;">💀</div>
+        <div class="pill-name">Very Hard</div>
+        <div class="pill-desc">No fair value. Fastest timer. Maximum pressure.</div>
+      </div>
+    </div>
+
+    <!-- Feature toggles -->
+    <div class="w-section-title">Features</div>
+    <div class="settings-section">
+      <div class="settings-header">
+        Display & Assistance
+        <span class="custom-badge" id="customBadge">CUSTOM</span>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Show fair value</div>
+          <div class="setting-desc">Displays the Black-Scholes fair price on each order</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-fairvalue" checked onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Cheap / Rich label</div>
+          <div class="setting-desc">Shows % mispricing vs fair value on each order</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-cheaprich" checked onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Pre-fill bid/ask</div>
+          <div class="setting-desc">Auto-fills your quote around the suggested mid price</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-prefill" checked onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Feedback after fills</div>
+          <div class="setting-desc">Explains whether your fill decision was correct</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-feedback" checked onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">IV Surface</div>
+          <div class="setting-desc">Shows volatility smile across strikes and expiries</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-ivsurface" onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-header">Market Events</div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Events</div>
+          <div class="setting-desc">Random shocks: IV spikes, flash crashes, sector moves</div>
+        </div>
+        <div class="toggle-wrap">
+          <select class="events-select" id="sel-events" onchange="onToggleChange()">
+            <option value="off">Off</option>
+            <option value="mild">Mild</option>
+            <option value="full">Full</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Event advice</div>
+          <div class="setting-desc">Banner suggests how to respond to market events</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="tog-eventadvice" checked onchange="onToggleChange()"><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-header">Timing</div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Session length</div>
+        </div>
+        <div class="range-wrap">
+          <input type="range" id="sl-session" min="1" max="15" value="5" step="1"
+                 oninput="document.getElementById('sl-session-val').textContent=this.value+'m'">
+          <div class="range-val" id="sl-session-val">5m</div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-left">
+          <div class="setting-label">Order timer</div>
+        </div>
+        <div class="range-wrap">
+          <input type="range" id="sl-timer" min="5" max="30" value="10" step="1"
+                 oninput="document.getElementById('sl-timer-val').textContent=this.value+'s'">
+          <div class="range-val" id="sl-timer-val">10s</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="welcome-btns">
+      <button class="start-btn" onclick="startFromWelcome()">▶ &nbsp;Start Game</button>
+    </div>
+
+    <!-- INLINE LEARN CONTENT -->
+    <div style="margin-top:36px;border-top:2px solid #e9ecef;padding-top:32px;">
+
+      <!-- How to Play -->
+      <div class="w-section-title">How to Play</div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:28px;">
+
+        <div style="background:#fff;border-radius:8px;border:1px solid #e9ecef;padding:18px 20px;">
+          <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:8px;font-family:'IBM Plex Sans',sans-serif;">Reading an Order</div>
+          <div style="font-size:13px;color:#495057;line-height:1.7;font-family:'IBM Plex Sans',sans-serif;">
+            Each order shows you: the <strong>contract</strong> (call or put, strike, expiry), whether the client wants to <strong>buy or sell</strong>, the <strong>suggested price</strong>, and the Black-Scholes <strong>fair value</strong>. The CHEAP/RICH label tells you whether the suggested price is above or below fair value — and combined with the client's direction, tells you whether filling is good or bad for you.
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:8px;border:1px solid #e9ecef;padding:18px 20px;">
+          <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:8px;font-family:'IBM Plex Sans',sans-serif;">Quoting Bid & Ask</div>
+          <div style="font-size:13px;color:#495057;line-height:1.7;font-family:'IBM Plex Sans',sans-serif;">
+            You quote two prices simultaneously — a <strong>bid</strong> (price you'll buy at) and an <strong>ask</strong> (price you'll sell at). A client buying hits your ask. A client selling hits your bid. To beat the bots: quote your ask lower than theirs on client buys, your bid higher on client sells. The spread between your bid and ask is your edge per trade.
+          </div>
+          <div style="margin-top:10px;padding:10px 14px;background:#f8f9fa;border-left:3px solid #00d084;border-radius:0 4px 4px 0;font-size:12px;color:#495057;font-family:'IBM Plex Sans',sans-serif;">
+            <strong style="color:#00a366;">Example:</strong> Fair value $5.00. You quote $4.94 / $5.06. Client buys at your ask $5.06 → edge = $0.06 × 100 shares = <strong>+$6 per contract</strong>.
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:8px;border:1px solid #e9ecef;padding:18px 20px;">
+          <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:8px;font-family:'IBM Plex Sans',sans-serif;">Delta Hedging</div>
+          <div style="font-size:13px;color:#495057;line-height:1.7;font-family:'IBM Plex Sans',sans-serif;">
+            Every fill adds <strong>delta</strong> — directional exposure to the stock. If you don't hedge, stock moves hurt you. Use <strong>Flatten Δ</strong> to automatically trade the shares needed to neutralise your delta, or use the +50 / −50 buttons for manual hedges. The goal: earn from spread income, not from lucky stock moves.
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:8px;border:1px solid #e9ecef;padding:18px 20px;">
+          <div style="font-size:13px;font-weight:700;color:#1a1d23;margin-bottom:8px;font-family:'IBM Plex Sans',sans-serif;">Scoring</div>
+          <div style="font-size:13px;color:#495057;line-height:1.7;font-family:'IBM Plex Sans',sans-serif;">
+            <strong>Total P&L = Spread Income + Greeks P&L.</strong> Spread income is edge captured from good fills. Greeks P&L is from your positions moving with the market. A good market maker has <em>large positive spread income</em> and <em>Greeks P&L near zero</em> from disciplined hedging.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Definitions -->
+      <div class="w-section-title">Definitions</div>
+      <div style="font-size:13px;color:#868e96;margin-bottom:16px;font-family:'IBM Plex Sans',sans-serif;">Click any term to expand.</div>
+
+      <!-- Reuse existing def-card components but override colors for light bg -->
+      <style>
+        .welcome .def-card { background:#fff; border:1px solid #e9ecef; border-radius:8px; margin-bottom:8px; }
+        .welcome .def-card-header:hover { background:#f8f9fa; }
+        .welcome .def-body { background:#fafafa; border-top:1px solid #f1f3f5; }
+        .welcome .def-plain { color:#495057; }
+        .welcome .def-plain strong { color:#1a1d23; }
+        .welcome .def-example { background:#f8f9fa; border:1px solid #e9ecef; border-left:3px solid #4a9eff; }
+        .welcome .def-name { color:#1a1d23; }
+        .welcome .def-symbol { color:#868e96; }
+        .welcome .def-chevron { color:#adb5bd; }
+      </style>
+
+      <div class="def-card" id="def-delta2">
+        <div class="def-card-header" onclick="toggleDef('delta2')">
+          <div class="def-card-left"><span class="def-tag greek">Greek</span><span class="def-name">Delta</span><span class="def-symbol">Δ</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Delta measures <strong>how much an option's price moves when the stock moves $1</strong>. A call with delta 0.5 gains $0.50 when the stock rises $1. Your net portfolio delta tells you your total directional exposure — keep it near zero by hedging with stock.</div>
+          <div class="def-example"><strong>At Optiver:</strong> "What's your delta?" means: how many shares equivalent of directional risk are you carrying right now?</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-gamma2">
+        <div class="def-card-header" onclick="toggleDef('gamma2')">
+          <div class="def-card-left"><span class="def-tag greek">Greek</span><span class="def-name">Gamma</span><span class="def-symbol">Γ</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Gamma measures <strong>how fast your delta changes</strong> when the stock moves. Short gamma means large moves in either direction hurt you — your delta drifts from neutral faster than you can hedge.</div>
+          <div class="def-example"><strong>In practice:</strong> A short gamma MM who doesn't hedge after a flash crash sees losses compound rapidly as delta drifts further from neutral.</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-theta2">
+        <div class="def-card-header" onclick="toggleDef('theta2')">
+          <div class="def-card-left"><span class="def-tag greek">Greek</span><span class="def-name">Theta</span><span class="def-symbol">Θ</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Theta measures <strong>how much an option loses in value each day</strong> from time passing. Selling options earns positive theta — you collect daily decay. Buying options pays negative theta. Most MMs are net short options and earn theta as steady income.</div>
+          <div class="def-example"><strong>The tradeoff:</strong> Positive theta from selling options comes with short vega. If IV spikes, your theta income can be wiped out quickly.</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-vega2">
+        <div class="def-card-header" onclick="toggleDef('vega2')">
+          <div class="def-card-left"><span class="def-tag greek">Greek</span><span class="def-name">Vega</span><span class="def-symbol">ν</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Vega measures <strong>how much an option's value changes per 1% move in implied volatility</strong>. Selling options makes you short vega. If IV rises — like during an IV Spike event — short vega positions lose money even if the stock doesn't move.</div>
+          <div class="def-example"><strong>Key insight:</strong> Selling options gives you positive theta but negative vega. You collect daily decay in exchange for taking on IV risk.</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-iv2">
+        <div class="def-card-header" onclick="toggleDef('iv2')">
+          <div class="def-card-left"><span class="def-tag vol">Volatility</span><span class="def-name">Implied Volatility</span><span class="def-symbol">IV</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Implied volatility is <strong>the market's expectation of how much the stock will move</strong>, expressed as an annualised percentage. Higher IV = more expensive options. IV spikes during uncertainty and crushes after events resolve.</div>
+          <div class="def-example"><strong>In the game:</strong> When an IV Spike event fires, IV jumps from 25% to 40–60%. All options become more expensive. Short options positions lose value.</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-bidask2">
+        <div class="def-card-header" onclick="toggleDef('bidask2')">
+          <div class="def-card-left"><span class="def-tag mm">Market Making</span><span class="def-name">Bid/Ask Spread & Edge</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">The <strong>bid</strong> is the price you'll buy at. The <strong>ask</strong> is the price you'll sell at. <strong>Edge</strong> is the difference between your fill price and fair value. Buy below fair or sell above fair — positive edge. The tighter you quote vs bots, the more fills you win but with less edge per fill.</div>
+          <div class="def-example"><strong>Example:</strong> Fair value $5.00. You sell at $5.06 → edge = $0.06 × 100 = <strong>+$6 per contract</strong>.</div>
+        </div>
+      </div>
+
+      <div class="def-card" id="def-ivsurface2">
+        <div class="def-card-header" onclick="toggleDef('ivsurface2')">
+          <div class="def-card-left"><span class="def-tag vol">Volatility</span><span class="def-name">IV Surface / Vol Smile</span></div>
+          <span class="def-chevron">▼</span>
+        </div>
+        <div class="def-body">
+          <div class="def-plain">Different options on the same stock trade at different IVs across strikes and expiries. OTM puts carry higher IV (put skew) due to demand for crash protection. On Hard/VH, you use this surface to price orders without being told fair value directly.</div>
+          <div class="def-example"><strong>Reading it:</strong> $175 put at 28% IV, ATM at 24% → 4% vol premium. An order at 30% IV for the $175 put is rich — you should sell it.</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div class="game-over" id="gameOver">
+  <div class="go-inner">
+    <div class="go-title">Session Complete</div>
+    <div class="go-pnl" id="goPnl">+$0.00</div>
+
+    <div class="go-grid">
+      <div class="go-cell">
+        <div class="go-cell-label">Spread Income</div>
+        <div class="go-cell-val pos" id="goSpread">+$0.00</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Greeks P&L</div>
+        <div class="go-cell-val neu" id="goGreeks">+$0.00</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Edge Capture</div>
+        <div class="go-cell-val" style="color:var(--blue);" id="goEdge">—</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Final Rank</div>
+        <div class="go-cell-val" style="color:var(--blue);" id="goRank">—</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Trades Filled</div>
+        <div class="go-cell-val neu" id="goFilled">0</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Lost to Bot</div>
+        <div class="go-cell-val amber" id="goLost">0</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Passed</div>
+        <div class="go-cell-val neu" id="goPassed">0</div>
+      </div>
+      <div class="go-cell">
+        <div class="go-cell-label">Hedge Trades</div>
+        <div class="go-cell-val neu" id="goHedges">0</div>
+      </div>
+    </div>
+
+    <!-- Final leaderboard -->
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Final Leaderboard</div>
+    <div class="go-lb" id="goLeaderboard"></div>
+
+    <!-- Decision quality -->
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;margin-top:16px;">Decision Quality</div>
+    <div class="go-grid" id="goDecisionGrid" style="margin-bottom:16px;"></div>
+
+    <!-- Trade breakdown -->
+    <div class="go-blotter">
+      <div class="go-blotter-title">Trade Breakdown — every order this session</div>
+      <table class="blotter-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Contract</th>
+            <th>Result</th>
+            <th>Side</th>
+            <th>Price</th>
+            <th>Fair</th>
+            <th>Edge</th>
+            <th>Decision</th>
+          </tr>
+        </thead>
+        <tbody id="goBlotterBody"></tbody>
+      </table>
+    </div>
+
+    <div class="go-btns">
+      <button class="go-btn primary"   onclick="playAgain()">Play Again</button>
+      <button class="go-btn secondary" onclick="goToMenu()">Change Settings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// BLACK-SCHOLES ENGINE
+// ================================================================
+function normCDF(x) {
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.sqrt(2);
+  const t = 1.0/(1.0+p*x);
+  const y = 1.0-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5*(1.0+sign*y);
+}
+function normPDF(x) { return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
+
+function bs(S,K,T,r,sigma,type) {
+  if (T<=0) {
+    const i = type==='call'?Math.max(S-K,0):Math.max(K-S,0);
+    return {price:i,delta:0,gamma:0,theta:0,vega:0};
+  }
+  const d1=(Math.log(S/K)+(r+0.5*sigma*sigma)*T)/(sigma*Math.sqrt(T));
+  const d2=d1-sigma*Math.sqrt(T);
+  let price,delta;
+  if (type==='call') { price=S*normCDF(d1)-K*Math.exp(-r*T)*normCDF(d2); delta=normCDF(d1); }
+  else { price=K*Math.exp(-r*T)*normCDF(-d2)-S*normCDF(-d1); delta=normCDF(d1)-1; }
+  const gamma=normPDF(d1)/(S*sigma*Math.sqrt(T));
+  const theta=(-(S*normPDF(d1)*sigma)/(2*Math.sqrt(T))-r*K*Math.exp(-r*T)*normCDF(type==='call'?d2:-d2))/365;
+  const vega=S*normPDF(d1)*Math.sqrt(T)*0.01;
+  return {price,delta,gamma,theta,vega};
+}
+
+// ================================================================
+// CONSTANTS
+// ================================================================
+const STRIKES         = [175, 180, 185, 190, 195];
+const EXPIRIES        = [7, 14, 30, 60];
+const TRUE_IV         = 0.25;
+const R               = 0.05;
+const ORDER_CONTRACTS = 1;
+const GAME_DURATION   = 300;
+const RESERVATION_PCT = 0.10;
+const VOL_WINDOW      = 10;
+const VOL_THRESHOLD   = 0.0015;
+const NORMAL_TIMER    = 10;
+const TEST_TIMER      = 20;
+
+let testMode = false;
+let feedbackOn = true;
+
+function getOrderTimer() { return testMode ? TEST_TIMER : gameSettings.orderTimer; }
+function toggleTestMode() {
+  testMode = !testMode;
+  const btn = document.getElementById('testModeBtn');
+  btn.textContent      = testMode ? 'Test Mode: ON' : 'Test Mode: OFF';
+  btn.style.color      = testMode ? 'var(--amber)' : 'var(--text3)';
+  btn.style.borderColor= testMode ? 'var(--amber)' : 'var(--border2)';
+  // Also compress game to 1 minute when test mode is on
+  state.timeLeft = testMode ? 60 : 300;
+  const m = Math.floor(state.timeLeft/60), s = state.timeLeft%60;
+  document.getElementById('gameTimer').textContent = m+':'+String(s).padStart(2,'0');
+}
+
+function toggleFeedback() {
+  feedbackOn = !feedbackOn;
+  const btn = document.getElementById('feedbackBtn');
+  btn.textContent      = feedbackOn ? 'Feedback: ON' : 'Feedback: OFF';
+  btn.style.color      = feedbackOn ? 'var(--green)' : 'var(--text3)';
+  btn.style.borderColor= feedbackOn ? 'var(--green2)' : 'var(--border2)';
+  const el = document.getElementById('feedback');
+  if (el) el.style.display = feedbackOn ? 'block' : 'none';
+}
+
+// Difficulty mode — controls bid/ask prefill behaviour
+// easy/medium: prefill bid/ask around suggested mid
+// hard/veryhard: blank inputs, price from scratch
+let diffMode = 'easy';
+const DIFF_SPREADS = { easy: 0.10, medium: 0.06, hard: null, veryhard: null };
+
+function setDiff(mode) {
+  diffMode = mode;
+  ['easy','medium','hard','veryhard'].forEach(d => {
+    const el = document.getElementById('diff-'+d);
+    if (el) el.classList.toggle('active', d === mode);
+  });
+  // Restart event scheduler with new difficulty
+  if (state.running) {
+    stopEventScheduler();
+    startEventScheduler();
+  }
+}
+
+// Calculate default bid/ask for current diff mode
+function getDefaultQuote(mid) {
+  if (!gameSettings.preFillQuotes) return { bid: '', ask: '' };
+  const spread = DIFF_SPREADS[diffMode] || 0.10;
+  return {
+    bid: Math.max(0.01, mid - spread/2).toFixed(2),
+    ask: (mid + spread/2).toFixed(2)
+  };
+}
+
+// ================================================================
+// BOT MARKET MAKERS (from Step 4b)
+// ================================================================
+class BotMM {
+  constructor(id, baseSpread, maxInventory, skewFactor, name) {
+    this.id=id; this.name=name; this.baseSpread=baseSpread;
+    this.maxInventory=maxInventory; this.skewFactor=skewFactor;
+    this.cash=0; this.inventory=0; this.trades=0; this.spreadIncome=0;
+  }
+  getQuotes(mid, regime) {
+    const spreadMult = regime==='high'?2.5:1.0;
+    const skewMult   = regime==='high'?2.0:1.0;
+    const effectiveSpread = this.baseSpread * spreadMult;
+    const effectiveSkew   = this.skewFactor * skewMult;
+    const skew      = -this.inventory * effectiveSkew;
+    const skewedMid = mid + skew;
+    const invRatio  = Math.abs(this.inventory) / this.maxInventory;
+    const dynSpread = effectiveSpread * (1 + invRatio);
+    return {
+      bid: parseFloat((skewedMid - dynSpread/2).toFixed(2)),
+      ask: parseFloat((skewedMid + dynSpread/2).toFixed(2))
+    };
+  }
+  canBuy()  { return this.inventory >  -this.maxInventory; }
+  canSell() { return this.inventory <   this.maxInventory; }
+  fill(side, price, fairPrice) {
+    const c = ORDER_CONTRACTS;
+    if (side==='buy') { this.cash+=price*c*100; this.inventory-=c; this.spreadIncome+=(price-fairPrice)*c*100; }
+    else              { this.cash-=price*c*100; this.inventory+=c; this.spreadIncome+=(fairPrice-price)*c*100; }
+    this.trades++;
+  }
+  getMtmPnl(fairPrice) { return this.cash + this.inventory*fairPrice*100; }
+}
+
+const bots = [
+  new BotMM(0, 0.045, 50, 0.0010, 'BOT-A'),
+  new BotMM(1, 0.040, 50, 0.0015, 'BOT-B'),
+  new BotMM(2, 0.035, 50, 0.0020, 'BOT-C'),
+  new BotMM(3, 0.030, 50, 0.0025, 'BOT-D'),
+];
+const BOT_SPEED_MISS = [0.08, 0.20, 0.30, 0.40];
+
+// ================================================================
+// GAME STATE
+// positions: keyed by contract string e.g. "CALL $185 30d"
+//   { qty, avgPrice, type, strike, T, expDays, openedAtStock, openedAtIV }
+// ================================================================
+let state = {
+  stock: 185.00, stockHistory: [185.00],
+  iv: TRUE_IV, prevStock: 185.00, prevIV: TRUE_IV,
+  positions: {},
+  // Stock hedge position
+  stockShares: 0,       // net shares held (positive = long, negative = short)
+  stockAvgCost: 0,      // weighted avg cost of stock position
+  stockCash: 0,         // cash spent/received on stock trades (negative = spent)
+  hedgeTrades: 0,
+  spreadIncome: 0, greeksPnl: 0,
+  pnlDelta: 0, pnlGamma: 0, pnlVega: 0,
+  trades: 0, passed: 0, lostToBot: 0,
+  hedgeTrades: 0,
+  // Edge capture tracking
+  totalAvailableEdge: 0,   // sum of |edge| on all fillable orders
+  totalCapturedEdge: 0,    // sum of edge you actually captured
+  blotter: [],
+  timeLeft: GAME_DURATION,
+  currentOrder: null,
+  running: true, tickCount: 0,
+  regime: 'low', recentMoves: [], regimeLocked: false,
+  gameInterval: null, timerInterval: null
+};
+
+// ================================================================
+// PRICE SIMULATION
+// ================================================================
+function tickPrice() {
+  state.prevStock = state.stock;
+  state.prevIV    = state.iv;
+
+  // Stock volatility scales with current IV — higher IV = bigger moves
+  // Base vol is 0.0012 at IV=25%. Scale proportionally.
+  const baseVol   = 0.0012;
+  const ivScale   = state.iv / TRUE_IV; // e.g. IV=50% → ivScale=2.0
+  const scaledVol = baseVol * ivScale;
+
+  const shock  = (Math.random()-0.5)*2*scaledVol*state.stock;
+  state.stock  = Math.max(150, Math.min(220, state.stock+shock));
+
+  const move = Math.abs(state.stock-state.prevStock)/state.prevStock;
+  state.recentMoves.push(move);
+  if (state.recentMoves.length > VOL_WINDOW) state.recentMoves.shift();
+
+  // Only update regime from recentMoves if it isn't locked by an event
+  if (!state.regimeLocked && state.recentMoves.length >= VOL_WINDOW) {
+    const mean     = state.recentMoves.reduce((a,b)=>a+b,0)/state.recentMoves.length;
+    const variance = state.recentMoves.reduce((a,b)=>a+(b-mean)**2,0)/state.recentMoves.length;
+    state.regime   = Math.sqrt(variance) > VOL_THRESHOLD ? 'high' : 'low';
+  }
+
+  const ivShock  = (Math.random()-0.5)*0.01;
+  const ivRevert = (TRUE_IV-state.iv)*0.05;
+  state.iv = Math.max(0.05, Math.min(0.80, state.iv+ivShock+ivRevert));
+
+  state.stockHistory.push(state.stock);
+  if (state.stockHistory.length > 200) state.stockHistory.shift();
+  state.tickCount++;
+
+  recalcGreeksPnl();
+  updateHeader();
+  renderGreeks();
+  renderHedgePanel();
+  renderPositions();
+  renderIVSurface();
+  drawGreeksChart();
+  drawPayoffChart();
+}
+
+// ================================================================
+// GREEKS CALCULATION
+// Runs BS on every open position and sums up all Greeks.
+// Also computes approximate P&L attribution by Greek.
+// ================================================================
+function calcPortfolioGreeks() {
+  let totalDelta=0, totalGamma=0, totalTheta=0, totalVega=0, totalMtm=0;
+
+  for (const key in state.positions) {
+    const pos = state.positions[key];
+    if (pos.qty === 0) continue;
+
+    // Use remaining time — approximate by using stored T
+    // (in a fuller build we'd track days elapsed)
+    const T = Math.max(0.001, pos.T);
+    const g = bs(state.stock, pos.strike, T, R, state.iv, pos.type);
+
+    // Scale by position size: qty contracts × 100 shares per contract
+    totalDelta += g.delta * pos.qty * 100;
+    totalGamma += g.gamma * pos.qty * 100;
+    totalTheta += g.theta * pos.qty * 100;
+    totalVega  += g.vega  * pos.qty * 100;
+
+    // Mark-to-market: current value vs what we paid
+    const mtm = (g.price - pos.avgPrice) * pos.qty * 100;
+    totalMtm  += mtm;
+  }
+
+  // Add stock position MtM
+  // stockCash is negative when we spent money buying shares
+  // current value of shares = stockShares × current price
+  const stockMtm = state.stockCash + state.stockShares * state.stock;
+  totalMtm += stockMtm;
+
+  // Stock delta contribution: 1 share = 1 delta
+  totalDelta += state.stockShares;
+
+  return { totalDelta, totalGamma, totalTheta, totalVega, totalMtm };
+}
+
+// ================================================================
+// GREEKS P&L ATTRIBUTION
+// Approximates how much of the Greeks P&L came from each greek.
+// These are first-order approximations:
+//   Delta P&L  ≈ delta × ΔS
+//   Gamma P&L  ≈ 0.5 × gamma × ΔS²
+//   Theta P&L  ≈ theta × Δt (1 tick ≈ 3 seconds ≈ 3/(365×86400) years)
+//   Vega P&L   ≈ vega × ΔIV (in % points)
+// ================================================================
+function recalcGreeksPnl() {
+  const { totalDelta, totalGamma, totalTheta, totalVega, totalMtm } = calcPortfolioGreeks();
+
+  const dS  = state.stock - state.prevStock;
+  const dIV = (state.iv - state.prevIV) * 100;
+
+  state.pnlDelta  = totalDelta * dS;
+  state.pnlGamma  = 0.5 * totalGamma * dS * dS;
+  state.pnlVega   = totalVega * dIV;
+
+  state.greeksPnl = totalMtm;
+}
+
+// ================================================================
+// DELTA HEDGING
+// ================================================================
+
+// Flatten Δ: calculate shares needed to bring net delta to zero,
+// then execute the trade at current stock price.
+// Net delta includes both options delta and existing stock position.
+function flattenDelta() {
+  const { totalDelta } = calcPortfolioGreeks();
+  // totalDelta is in shares (options delta×100 + stockShares)
+  // trade the negative to get to zero
+  const sharesToTrade = -Math.round(totalDelta);
+  if (sharesToTrade === 0) {
+    const lastEl = document.getElementById('hLastHedge');
+  if (lastEl) lastEl.textContent = 'Already flat — no hedge needed.';
+    return;
+  }
+  executeHedge(sharesToTrade);
+}
+
+// Manual hedge: buy or sell a fixed number of shares
+function hedgeShares(shares) {
+  executeHedge(shares);
+}
+
+// Core hedge execution — updates stock position and cash
+function executeHedge(shares) {
+  if (shares === 0) return;
+  const price   = state.stock;
+  const prevQty = state.stockShares;
+  const newQty  = prevQty + shares;
+
+  // Cash: buying costs money (negative), selling earns (positive)
+  state.stockCash   -= shares * price;
+  state.stockShares  = newQty;
+  state.hedgeTrades++;
+
+  // Avg cost: track weighted average purchase price
+  if (newQty === 0) {
+    // Fully flat — reset
+    state.stockAvgCost = 0;
+  } else if (prevQty === 0) {
+    // New position from flat
+    state.stockAvgCost = price;
+  } else if (Math.sign(newQty) === Math.sign(prevQty) && Math.abs(newQty) > Math.abs(prevQty)) {
+    // Adding to existing position — weighted average
+    state.stockAvgCost = (state.stockAvgCost * Math.abs(prevQty) + price * Math.abs(shares))
+                       / Math.abs(newQty);
+  } else if (Math.sign(newQty) !== Math.sign(prevQty)) {
+    // Crossed through zero — new position at current price
+    state.stockAvgCost = price;
+  }
+  // If reducing position (same sign, smaller size) — avg cost stays the same
+
+  const action = shares > 0 ? 'Bought' : 'Sold';
+  const lastEl2 = document.getElementById('hLastHedge');
+  if (lastEl2) lastEl2.textContent = `${action} ${Math.abs(shares)} shares @ $${price.toFixed(2)}`;
+
+  recalcGreeksPnl();
+  renderGreeks();
+  renderHedgePanel();
+  renderPositions();
+  renderIVSurface();
+  drawGreeksChart();
+  drawPayoffChart();
+  updateHeader();
+}
+
+// Render the hedge panel display
+function renderHedgePanel() {
+  const shares   = state.stockShares;
+  const avgCost  = state.stockAvgCost;
+  const hedgePnl = state.stockCash + shares * state.stock;
+  const { totalDelta } = calcPortfolioGreeks();
+
+  // Update hedge elements only if they exist in DOM
+  const posEl = document.getElementById('hStockPos');
+  if (posEl) {
+    posEl.textContent = `${shares >= 0 ? '+' : ''}${shares} shares`;
+    posEl.className   = 'hedge-val ' + (shares > 0 ? 'pos' : shares < 0 ? 'neg' : '');
+  }
+  const avgEl = document.getElementById('hAvgCost');
+  if (avgEl) avgEl.textContent = shares !== 0 ? `$${avgCost.toFixed(2)}` : '—';
+
+  const pnlEl = document.getElementById('hHedgePnl');
+  if (pnlEl) {
+    pnlEl.textContent = fmt(hedgePnl);
+    pnlEl.className   = 'hedge-val ' + (hedgePnl > 0 ? 'pos' : hedgePnl < 0 ? 'neg' : '');
+  }
+  const netEl = document.getElementById('hNetDelta');
+  if (netEl) {
+    netEl.textContent = `${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(1)} shares`;
+    netEl.className   = 'hedge-val ' + (Math.abs(totalDelta) > 100 ? 'neg' : Math.abs(totalDelta) > 50 ? '' : 'pos');
+  }
+}
+function renderGreeks() {
+  const { totalDelta, totalGamma, totalTheta, totalVega } = calcPortfolioGreeks();
+
+  // Delta
+  const deltaEl    = document.getElementById('gDelta');
+  const deltaSubEl = document.getElementById('gDeltaSub');
+  const deltaBar   = document.getElementById('deltaBar');
+  deltaEl.textContent = totalDelta.toFixed(1);
+  deltaEl.className   = 'greek-val ' + colorClass(totalDelta);
+
+  const deltaExposure = totalDelta * state.stock;
+  const sharesEquiv   = Math.round(totalDelta);
+  deltaSubEl.textContent = `${Math.abs(sharesEquiv)} shares equiv ${totalDelta >= 0 ? 'long' : 'short'}`;
+  const absDelta = Math.min(Math.abs(totalDelta), 150);
+  const barPct   = (absDelta / 150) * 50;
+  if (totalDelta >= 0) {
+    deltaBar.style.left       = '50%';
+    deltaBar.style.width      = barPct + '%';
+    deltaBar.style.background = 'var(--green)';
+  } else {
+    deltaBar.style.left       = (50 - barPct) + '%';
+    deltaBar.style.width      = barPct + '%';
+    deltaBar.style.background = 'var(--red)';
+  }
+  // Thresholds in shares equivalent — 50 = amber, 100 = red
+  if (Math.abs(sharesEquiv) > 100) {
+    deltaSubEl.className = 'greek-sub danger';
+  } else if (Math.abs(sharesEquiv) > 50) {
+    deltaSubEl.className = 'greek-sub warn';
+  } else {
+    deltaSubEl.className = 'greek-sub';
+  }
+
+  // Gamma
+  const gammaEl = document.getElementById('gGamma');
+  gammaEl.textContent = totalGamma.toFixed(4);
+  gammaEl.className   = 'greek-val ' + colorClass(totalGamma);
+  document.getElementById('gGammaSub').textContent =
+    `Δ changes ${Math.abs(totalGamma * 100).toFixed(2)} per $1 move`;
+
+  // Theta — positive totalTheta means net short options (earning decay)
+  const thetaEl = document.getElementById('gTheta');
+  thetaEl.textContent = fmt(totalTheta) + '/day';
+  thetaEl.className   = 'greek-val ' + (totalTheta > 0 ? 'pos' : totalTheta < 0 ? 'neg' : 'neu');
+  document.getElementById('gThetaSub').textContent =
+    totalTheta > 0
+      ? `Earning decay (net short options)`
+      : totalTheta < 0
+        ? `Paying decay (net long options)`
+        : 'Flat theta';
+
+  // Vega
+  const vegaEl = document.getElementById('gVega');
+  vegaEl.textContent = fmt(totalVega);
+  vegaEl.className   = 'greek-val ' + colorClass(totalVega);
+  document.getElementById('gVegaSub').textContent =
+    `${totalVega >= 0 ? '+' : ''}${fmt(totalVega)} per 1% IV move`;
+
+  // Theta — show daily rate in breakdown panel (reuse totalTheta from above)
+  const thetaDailyEl = document.getElementById('pnlTheta');
+  thetaDailyEl.textContent = fmt(totalTheta);
+  thetaDailyEl.className   = 'greek-val ' + (totalTheta > 0 ? 'pos' : totalTheta < 0 ? 'neg' : 'neu');
+  document.getElementById('pnlThetaSub').textContent =
+    totalTheta > 0
+      ? 'Earning per day (net short)'
+      : totalTheta < 0
+        ? 'Paying per day (net long)'
+        : 'No theta exposure';
+
+  setPnlCell('pnlDelta', state.pnlDelta);
+  setPnlCell('pnlGamma', state.pnlGamma);
+  setPnlCell('pnlVega',  state.pnlVega);
+}
+
+function colorClass(val) {
+  return Math.abs(val) < 0.001 ? 'neu' : val > 0 ? 'pos' : 'neg';
+}
+
+function setPnlCell(id, val) {
+  const el = document.getElementById(id);
+  el.textContent = fmt(val);
+  el.className   = 'greek-val ' + (val > 0 ? 'pos' : val < 0 ? 'neg' : 'neu');
+}
+
+// ================================================================
+// RENDER POSITIONS TABLE
+// ================================================================
+function renderPositions() {
+  const tbody = document.getElementById('posBody');
+  if (!tbody) return;
+  const rows  = Object.entries(state.positions).filter(([,p]) => p.qty !== 0);
+
+  // Build stock hedge row
+  let stockRow = '';
+  if (state.stockShares !== 0) {
+    const hedgePnl = state.stockCash + state.stockShares * state.stock;
+    const pnlColor = hedgePnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const qtyColor = state.stockShares > 0 ? 'var(--green)' : 'var(--red)';
+    stockRow = `<tr style="border-top:2px solid var(--border2);background:var(--bg3);">
+      <td style="color:var(--amber);font-size:10px;letter-spacing:0.04em;">STOCK HEDGE</td>
+      <td style="color:${qtyColor}">${state.stockShares > 0 ? '+' : ''}${state.stockShares}</td>
+      <td>$${state.stockAvgCost.toFixed(2)}</td>
+      <td style="color:${qtyColor}">${state.stockShares.toFixed(1)}</td>
+      <td style="color:${pnlColor}">${hedgePnl >= 0 ? '+$' : '-$'}${Math.abs(hedgePnl).toFixed(0)}</td>
+    </tr>`; 
+  }
+
+  if (!rows.length && !stockRow) {
+    tbody.innerHTML = '<tr style="display:table;width:100%;table-layout:fixed;"><td colspan="5" class="no-pos">No positions yet</td></tr>';
+    return;
+  }
+
+  // Sort newest first — reverse insertion order using blotter as reference
+  const optionRows = rows.map(([key, pos]) => {
+    const T   = Math.max(0.001, pos.T);
+    const g   = bs(state.stock, pos.strike, T, R, state.iv, pos.type);
+    const mtm = (g.price - pos.avgPrice) * pos.qty * 100;
+    const posDelta = g.delta * pos.qty * 100;
+    const qtyColor  = pos.qty > 0 ? 'var(--green)' : 'var(--red)';
+    const mtmColor  = mtm >= 0 ? 'var(--green)' : 'var(--red)';
+    const dColor    = posDelta >= 0 ? 'var(--green)' : 'var(--red)';
+    return { key, pos, mtm, html: `<tr style="display:table;width:100%;table-layout:fixed;">
+      <td>${key}</td>
+      <td style="color:${qtyColor}">${pos.qty > 0 ? '+' : ''}${pos.qty}</td>
+      <td>$${pos.avgPrice.toFixed(2)}</td>
+      <td style="color:${dColor}">${posDelta.toFixed(1)}</td>
+      <td style="color:${mtmColor}">${mtm >= 0 ? '+$' : '-$'}${Math.abs(mtm).toFixed(0)}</td>
+    </tr>` };
+  }).reverse(); // newest first
+
+  tbody.innerHTML = optionRows.map(r => r.html).join('') + stockRow;
+}
+
+// ================================================================
+// ORDER GENERATION
+// ================================================================
+function generateOrder() {
+  const type    = Math.random()>0.5?'call':'put';
+  const strike  = STRIKES[Math.floor(Math.random()*STRIKES.length)];
+  const expDays = EXPIRIES[Math.floor(Math.random()*EXPIRIES.length)];
+  const T       = expDays/365;
+  const orderIV = Math.max(0.05, state.iv*(1+(Math.random()-0.5)*2*0.20));
+  const fair    = bs(state.stock,strike,T,R,state.iv,type);
+  const orderBs = bs(state.stock,strike,T,R,orderIV,type);
+  const suggestedPrice = Math.max(0.01,parseFloat(orderBs.price.toFixed(2)));
+  const clientSide = Math.random()>0.5?'buy':'sell';
+  const edgePct = ((suggestedPrice-fair.price)/fair.price)*100;
+  return {
+    type,strike,expDays,T,clientSide,
+    fairPrice:fair.price, suggestedPrice,
+    orderIV,fairIV:state.iv, edgePct,
+    greeks:fair,
+    key:`${type.toUpperCase()} $${strike} ${expDays}d`
+  };
+}
+
+// ================================================================
+// BOT QUOTES
+// ================================================================
+function getBotQuotes(order, applySpeedMiss=false) {
+  return bots.map((bot,i) => {
+    const {bid,ask} = bot.getQuotes(order.suggestedPrice, state.regime);
+    const fillPrice = order.clientSide==='buy' ? ask : bid;
+    const canFill   = order.clientSide==='buy' ? bot.canSell() : bot.canBuy();
+    const missed    = applySpeedMiss && Math.random() < BOT_SPEED_MISS[i];
+    return {bot,bid,ask,fillPrice,canFill:canFill&&!missed};
+  });
+}
+
+// ================================================================
+// RENDER ORDER — now includes a Greek impact preview
+// ================================================================
+function renderOrder(order) {
+  const isCheap = order.edgePct < -1;
+  const isRich  = order.edgePct >  1;
+  const label   = isCheap?`${order.edgePct.toFixed(1)}% CHEAP`:isRich?`+${order.edgePct.toFixed(1)}% RICH`:'FAIR';
+  const lClass  = isCheap?'cheap':isRich?'rich':'neu';
+  const ourSide = order.clientSide==='buy'?'SELL':'BUY';
+  const ourClass= ourSide==='BUY'?'buy':'sell';
+
+  // Highlight this order's cell in the IV surface
+  renderIVSurface(order.strike, order.expDays);
+
+  // Default bid/ask based on difficulty mode
+  const defaultQuote = getDefaultQuote(order.suggestedPrice);
+
+  // How would this fill change our portfolio delta?
+  // Client buy → we sell (short) → negative qty
+  // Client sell → we buy (long) → positive qty
+  const qty          = order.clientSide==='sell' ? ORDER_CONTRACTS : -ORDER_CONTRACTS;
+  const deltaImpact  = order.greeks.delta * qty * 100;
+  const { totalDelta } = calcPortfolioGreeks();
+  const newDelta     = totalDelta + deltaImpact;
+  const deltaImpactColor = Math.abs(newDelta) > Math.abs(totalDelta) ? 'var(--red)' : 'var(--green)';
+
+  const botQuotes  = getBotQuotes(order, false);
+  const activeBots = botQuotes.filter(q=>q.canFill);
+  const bestBotFill= activeBots.length>0
+    ? (order.clientSide==='buy'
+        ? Math.min(...activeBots.map(q=>q.fillPrice))
+        : Math.max(...activeBots.map(q=>q.fillPrice)))
+    : null;
+
+  const resvMax = parseFloat((order.suggestedPrice*(1+RESERVATION_PCT)).toFixed(2));
+  const resvMin = parseFloat((order.suggestedPrice*(1-RESERVATION_PCT)).toFixed(2));
+
+  // Show bot bid AND ask so player can see full two-sided market
+  const botQuoteHTML = botQuotes.map(q => {
+    const isBest = bestBotFill!==null && q.fillPrice===bestBotFill && q.canFill;
+    return `<div class="bq-cell ${isBest?'best-bot':''}">
+      <div class="bq-name">${q.bot.name}</div>
+      <div class="bq-price" style="font-size:10px;">
+        <span style="color:var(--green);">${q.canFill||true?'$'+q.bid.toFixed(2):'—'}</span>
+        <span style="color:var(--text3);"> / </span>
+        <span style="color:var(--red);">${q.canFill||true?'$'+q.ask.toFixed(2):'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('orderCard').innerHTML = `
+    <div class="timer-bar-wrap"><div class="timer-bar" id="timerBar" style="width:100%;"></div></div>
+    <div class="order-card-top">
+      <div class="order-left">
+        <div class="badge ${order.type}">${order.type.toUpperCase()}</div>
+        <div class="order-name">${order.key}</div>
+        <div class="order-qty">× ${ORDER_CONTRACTS} contracts</div>
+      </div>
+      <div class="order-timer-disp">Expires in <span id="orderTimerDisp">${getOrderTimer()}</span>s</div>
+    </div>
+    <div class="order-fields">
+      <div class="ofield">
+        <div class="ofield-label">Client wants to</div>
+        <div class="ofield-val ${order.clientSide==='buy'?'side-buy':'side-sell'}">${order.clientSide.toUpperCase()}</div>
+      </div>
+      <div class="ofield">
+        <div class="ofield-label">Strike</div>
+        <div class="ofield-val">$${order.strike}</div>
+      </div>
+      <div class="ofield">
+        <div class="ofield-label">Expiry</div>
+        <div class="ofield-val">${order.expDays}d</div>
+      </div>
+      <div class="ofield">
+        <div class="ofield-label">Suggested px</div>
+        <div class="ofield-val">$${order.suggestedPrice.toFixed(2)}</div>
+        ${gameSettings.showFairValue
+          ? `<div class="ofield-sub ${gameSettings.showCheapRich ? lClass : 'neu'}">
+               Fair: $${order.fairPrice.toFixed(2)}
+               ${gameSettings.showCheapRich ? '· ' + label : ''}
+             </div>`
+          : ''}
+      </div>
+    </div>
+    <div class="order-greeks">
+      <div class="og">Δ<span>${order.greeks.delta.toFixed(3)}</span></div>
+      <div class="og">Γ<span>${order.greeks.gamma.toFixed(4)}</span></div>
+      <div class="og">Θ<span>${order.greeks.theta.toFixed(3)}</span></div>
+      <div class="og">ν<span>${order.greeks.vega.toFixed(3)}</span></div>
+      <div class="og">IV<span>${(order.orderIV*100).toFixed(1)}%</span></div>
+      <div class="og">Fair IV<span>${(order.fairIV*100).toFixed(1)}%</span></div>
+    </div>
+    <div class="order-impact">
+      <div><span class="impact-label">If client ${order.clientSide}s hit your ${order.clientSide==='buy'?'ask':'bid'}:</span>
+        <span class="impact-val" style="color:${deltaImpactColor};">
+          Δ → ${newDelta.toFixed(1)} (${deltaImpact>=0?'+':''}${deltaImpact.toFixed(1)})
+        </span>
+      </div>
+      <div><span class="impact-label">Theta:</span>
+        <span class="impact-val">${fmt(order.greeks.theta*qty*100)}/day</span>
+      </div>
+      <div><span class="impact-label">Vega:</span>
+        <span class="impact-val">${fmt(order.greeks.vega*qty*100)}/1%IV</span>
+      </div>
+    </div>
+    <div style="padding:5px 14px 3px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);background:var(--bg3);">
+      COMPETING QUOTES — ${order.clientSide==='buy'?'Bots selling (ask)':'Bots buying (bid)'}
+    </div>
+    <div class="bot-quotes">${botQuoteHTML}</div>
+
+    <div class="quote-row">
+      <div class="quote-side">
+        <div class="quote-side-label bid">Your Bid</div>
+        <input type="number" class="quote-input bid ${defaultQuote.bid===''?'blank':''}"
+               id="myBid" value="${defaultQuote.bid}"
+               placeholder="${defaultQuote.bid===''?'price':''}"
+               step="0.01" min="0.01">
+      </div>
+      <div class="quote-spread">
+        Spread: <span id="spreadDisplay">—</span>
+        <br><span style="font-size:9px;color:var(--text3);">client ${order.clientSide}s → hits ${order.clientSide==='buy'?'ask':'bid'}</span>
+      </div>
+      <div class="quote-side">
+        <div class="quote-side-label ask">Your Ask</div>
+        <input type="number" class="quote-input ask ${defaultQuote.ask===''?'blank':''}"
+               id="myAsk" value="${defaultQuote.ask}"
+               placeholder="${defaultQuote.ask===''?'price':''}"
+               step="0.01" min="0.01">
+      </div>
+      <div class="quote-submit">
+        <button class="btn buy"  onclick="submitQuote('BUY')"
+          ${order.clientSide==='buy'?'disabled style="opacity:0.3;cursor:default;"':''}>Fill BID</button>
+        <button class="btn sell" onclick="submitQuote('SELL')"
+          ${order.clientSide==='sell'?'disabled style="opacity:0.3;cursor:default;"':''}>Fill ASK</button>
+        <button class="btn"      onclick="passOrder()">Pass</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end;margin-left:auto;padding-left:12px;border-left:1px solid var(--border);">
+        <button class="btn flat" onclick="flattenDelta()" style="font-size:11px;padding:7px 10px;">Flatten Δ</button>
+        <button class="btn buy"  onclick="hedgeShares(50)"  style="font-size:11px;padding:7px 10px;">+50</button>
+        <button class="btn sell" onclick="hedgeShares(-50)" style="font-size:11px;padding:7px 10px;">−50</button>
+      </div>
+    </div>
+    <div class="reservation-notice">
+      Client range: <span>$${resvMin.toFixed(2)} – $${resvMax.toFixed(2)}</span>
+      &nbsp;·&nbsp; Client ${order.clientSide}s → you fill at your <strong>${order.clientSide==='buy'?'ask':'bid'}</strong>
+    </div>
+  `;
+
+  // Live spread display
+  setTimeout(() => {
+    const bidEl = document.getElementById('myBid');
+    const askEl = document.getElementById('myAsk');
+    const sdEl  = document.getElementById('spreadDisplay');
+    function updateSpread() {
+      const b = parseFloat(bidEl?.value);
+      const a = parseFloat(askEl?.value);
+      if (sdEl && !isNaN(b) && !isNaN(a) && a > b) {
+        sdEl.textContent = '$' + (a - b).toFixed(2);
+        sdEl.style.color = (a - b) < 0.03 ? 'var(--red)' : 'var(--green)';
+      } else if (sdEl) {
+        sdEl.textContent = a <= b ? 'INVALID' : '—';
+        sdEl.style.color = 'var(--red)';
+      }
+    }
+    bidEl?.addEventListener('input', updateSpread);
+    askEl?.addEventListener('input', updateSpread);
+    updateSpread();
+  }, 0);
+}
+
+// ================================================================
+// SUBMIT QUOTE — bid/ask fill logic
+// Client BUY hits your ASK (you sell to them at your ask price)
+// Client SELL hits your BID (you buy from them at your bid price)
+// ================================================================
+function submitQuote(manualSide) {
+  if (!state.currentOrder) return;
+  const order  = state.currentOrder;
+  const bidVal = parseFloat(document.getElementById('myBid')?.value);
+  const askVal = parseFloat(document.getElementById('myAsk')?.value);
+
+  // Determine which side is relevant
+  const ourSide        = order.clientSide === 'buy' ? 'SELL' : 'BUY';
+  const effectiveSide  = manualSide || ourSide;
+  // Only validate the side that matters — other input can be blank
+  const effectivePrice = effectiveSide === 'SELL' ? askVal : bidVal;
+
+  if (isNaN(effectivePrice) || effectivePrice <= 0) {
+    setFeedback(`Enter your ${effectiveSide === 'SELL' ? 'ask' : 'bid'} price before submitting.`, 'warn');
+    return;
+  }
+
+  // Only check bid < ask if both are filled in
+  if (!isNaN(bidVal) && !isNaN(askVal) && bidVal > 0 && askVal > 0 && askVal <= bidVal) {
+    setFeedback('Ask must be higher than bid.', 'warn');
+    return;
+  }
+
+  // Reservation price check
+  const resvMax = order.suggestedPrice * (1 + RESERVATION_PCT);
+  const resvMin = order.suggestedPrice * (1 - RESERVATION_PCT);
+  if (effectivePrice > resvMax || effectivePrice < resvMin) {
+    setFeedback(`Rejected — $${effectivePrice.toFixed(2)} is outside client range ($${resvMin.toFixed(2)}–$${resvMax.toFixed(2)}).`, 'warn');
+    return;
+  }
+
+  // Bot competition — using the relevant fill price
+  const botQuotes  = getBotQuotes(order, true);
+  const activeBots = botQuotes.filter(q => q.canFill);
+  let winner = 'you', winnerBot = null, winPrice = effectivePrice;
+
+  if (order.clientSide === 'buy') {
+    // Client buying — lowest ask wins
+    for (const q of activeBots) {
+      if (q.fillPrice < winPrice || (q.fillPrice === winPrice && winner === 'you')) {
+        winner = 'bot'; winnerBot = q.bot; winPrice = q.fillPrice;
+      }
+    }
+  } else {
+    // Client selling — highest bid wins
+    for (const q of activeBots) {
+      if (q.fillPrice > winPrice || (q.fillPrice === winPrice && winner === 'you')) {
+        winner = 'bot'; winnerBot = q.bot; winPrice = q.fillPrice;
+      }
+    }
+  }
+
+  if (winner === 'bot') {
+    winnerBot.fill(order.clientSide, winPrice, order.fairPrice);
+    state.lostToBot++;
+    setFeedback(
+      `${winnerBot.name} beat you at $${winPrice.toFixed(2)} (your ${effectiveSide==='SELL'?'ask':'bid'}: $${effectivePrice.toFixed(2)}). ` +
+      `${order.clientSide==='buy'?'Tighten your ask to win.':'Tighten your bid to win.'}`,
+      'warn'
+    );
+    state.blotter.unshift({key:order.key, result:'lost', price:effectivePrice, fairPrice:order.fairPrice, botPrice:winPrice, botName:winnerBot.name, edge:0});
+  } else {
+    // You win — calculate edge
+    const qty = effectiveSide === 'BUY' ? ORDER_CONTRACTS : -ORDER_CONTRACTS;
+    const edgePerContract = effectiveSide === 'BUY'
+      ? (order.fairPrice - effectivePrice)
+      : (effectivePrice - order.fairPrice);
+    const totalEdge = edgePerContract * ORDER_CONTRACTS * 100;
+
+    state.spreadIncome += totalEdge;
+    state.trades++;
+
+    // Update position
+    const key = order.key;
+    if (!state.positions[key]) {
+      state.positions[key] = { qty:0, avgPrice:0, type:order.type, strike:order.strike, T:order.T, expDays:order.expDays };
+    }
+    const pos = state.positions[key];
+    const prevQty = pos.qty;
+    pos.qty += qty;
+    pos.avgPrice = prevQty === 0
+      ? effectivePrice
+      : (pos.avgPrice * Math.abs(prevQty) + effectivePrice * Math.abs(qty)) / Math.abs(pos.qty);
+    pos.T = order.T;
+
+    showFeedback(order, effectiveSide, effectivePrice, totalEdge);
+    const availableEdge = Math.abs(order.suggestedPrice - order.fairPrice) * ORDER_CONTRACTS * 100;
+    state.totalAvailableEdge += availableEdge;
+    state.totalCapturedEdge  += Math.max(0, totalEdge);
+    state.blotter.unshift({
+      key:order.key, result:'filled', ourSide:effectiveSide,
+      price:effectivePrice, fairPrice:order.fairPrice,
+      edge:totalEdge, correct:totalEdge>=0,
+      edgePct:order.edgePct, clientSide:order.clientSide
+    });
+
+    renderGreeks();
+    renderHedgePanel();
+    renderPositions();
+    renderIVSurface();
+    drawGreeksChart();
+    drawPayoffChart();
+  }
+
+  clearOrderTimer();
+  updateHeader();
+  renderBlotter();
+  updateRankBadge();
+  scheduleNextOrder(2500);
+}
+
+// ================================================================
+// PASS ORDER
+// ================================================================
+function passOrder() {
+  if (!state.currentOrder) return;
+  const order    = state.currentOrder;
+  const isCheap  = order.edgePct < -1;
+  const isRich   = order.edgePct >  1;
+  // Edge is in your favour only when:
+  // CHEAP + client SELLING (you buy cheap) or RICH + client BUYING (you sell rich)
+  const hasEdgeForYou = (isCheap && order.clientSide==='sell') || (isRich && order.clientSide==='buy');
+  const shouldFill = hasEdgeForYou;
+  state.passed++;
+
+  const botQuotes  = getBotQuotes(order,true);
+  const activeBots = botQuotes.filter(q=>q.canFill);
+  let botWinner=null, botWinPrice=null;
+
+  if (activeBots.length>0) {
+    const best = order.clientSide==='buy'
+      ? activeBots.reduce((a,b)=>a.fillPrice<=b.fillPrice?a:b)
+      : activeBots.reduce((a,b)=>a.fillPrice>=b.fillPrice?a:b);
+    botWinner=best.bot; botWinPrice=best.fillPrice;
+    botWinner.fill(order.clientSide, botWinPrice, order.fairPrice);
+  }
+
+  if (botWinner) {
+    setFeedback(
+      shouldFill
+        ? `You passed — ${botWinner.name} filled at $${botWinPrice.toFixed(2)}. Edge left on table.`
+        : `Good pass. ${botWinner.name} filled at $${botWinPrice.toFixed(2)}.`,
+      shouldFill ? 'bad' : 'neu'
+    );
+  } else {
+    setFeedback(shouldFill ? 'Passed on an edge order — no bots filled either.' : 'Good pass — fairly priced.', shouldFill?'bad':'good');
+  }
+
+  // Track available edge even on passes
+  const availableEdgeOnPass = Math.abs(order.suggestedPrice - order.fairPrice) * ORDER_CONTRACTS * 100;
+  if (Math.abs(order.edgePct) > 1) state.totalAvailableEdge += availableEdgeOnPass;
+
+  state.blotter.unshift({
+    key:order.key, result:'passed', edge:0,
+    fairPrice:order.fairPrice, price:order.suggestedPrice,
+    correct:!shouldFill, botName:botWinner?.name, botPrice:botWinPrice,
+    edgePct:order.edgePct, clientSide:order.clientSide
+  });
+  clearOrderTimer();
+  document.getElementById('orderCard').innerHTML='<div class="order-idle">Order passed. Next order incoming...</div>';
+  updateHeader();
+  renderBlotter();
+  updateRankBadge();
+  scheduleNextOrder(2500);
+}
+
+// ================================================================
+// FEEDBACK
+// ================================================================
+// Was this the correct decision?
+// For fills: positive edge = correct
+// For passes: if order was truly fair (|edgePct| < 1) = correct pass
+//             if order had edge and client side was favorable = incorrect pass
+function wasCorrectDecision(t) {
+  if (t.result === 'filled') return t.edge >= 0;
+  if (t.result === 'lost')   return false;
+  if (t.result === 'passed') return t.correct !== false;
+  return true;
+}
+
+function showFeedback(order, ourSide, myPrice, totalEdge) {
+  const isCheap = order.edgePct < -1;
+  const isRich  = order.edgePct >  1;
+  let msg='', cls='neu';
+
+  if (totalEdge > 0) {
+    cls = 'good';
+    if (ourSide==='BUY' && isCheap)
+      msg = `Good buy — client selling ${Math.abs(order.edgePct).toFixed(1)}% cheap. You bought below fair. +$${totalEdge.toFixed(0)} edge.`;
+    else if (ourSide==='SELL' && isRich)
+      msg = `Good sell — client buying ${Math.abs(order.edgePct).toFixed(1)}% rich. You sold above fair. +$${totalEdge.toFixed(0)} edge.`;
+    else
+      msg = `Positive edge +$${totalEdge.toFixed(0)} from price improvement.`;
+  } else if (totalEdge < 0) {
+    cls = 'bad';
+    if (ourSide==='BUY' && isRich)
+      msg = `Bad fill — order was RICH, client was buying. You bought above fair. -$${Math.abs(totalEdge).toFixed(0)} edge lost.`;
+    else if (ourSide==='SELL' && isCheap)
+      msg = `Bad fill — order was CHEAP, client was selling. You sold below fair. -$${Math.abs(totalEdge).toFixed(0)} edge lost.`;
+    else
+      msg = `Negative edge -$${Math.abs(totalEdge).toFixed(0)}. Check cheap/rich and client side before filling.`;
+  } else {
+    msg = 'Filled at exactly fair value — no edge captured or lost.';
+  }
+  setFeedback(msg, cls);
+}
+function setFeedback(msg,cls) {
+  const el=document.getElementById('feedback');
+  if (!el) return;
+  el.textContent=msg;
+  el.className='feedback '+cls;
+  el.style.display = feedbackOn ? 'block' : 'none';
+}
+
+// ================================================================
+// HEADER
+// ================================================================
+function updateHeader() {
+  const chg=state.stock-185.00, chgP=(chg/185.00*100);
+  document.getElementById('stockPrice').textContent='$'+state.stock.toFixed(2);
+  const chgEl=document.getElementById('stockChange');
+  chgEl.textContent=(chg>=0?'+':'')+chg.toFixed(2)+' ('+(chg>=0?'+':'')+chgP.toFixed(2)+'%)';
+  chgEl.className='stock-change '+(chg>=0?'up':'down');
+  document.getElementById('ivDisplay').textContent=(state.iv*100).toFixed(1)+'%';
+
+  const totalPnl=state.spreadIncome+state.greeksPnl;
+  document.getElementById('spreadIncome').textContent=fmt(state.spreadIncome);
+  document.getElementById('spreadIncome').className='hstat-val '+(state.spreadIncome>=0?'pos':'neg');
+  document.getElementById('greeksPnl').textContent=fmt(state.greeksPnl);
+  document.getElementById('greeksPnl').className='hstat-val '+(state.greeksPnl>=0?'pos':'neg');
+  document.getElementById('totalPnl').textContent=fmt(totalPnl);
+  document.getElementById('totalPnl').className='hstat-val '+(totalPnl>=0?'pos':'neg');
+  document.getElementById('fillLost').textContent=state.trades+' / '+state.lostToBot;
+}
+
+// ================================================================
+// IV SURFACE
+// Models a volatility smile + term structure around the current ATM IV.
+//
+// Smile: OTM options trade at higher IV than ATM.
+//   - Puts skew: downside strikes have higher IV (crash protection bid)
+//   - Call skew: upside strikes slightly elevated but less than puts
+//
+// Term structure: short-dated options have higher IV than long-dated
+//   when the market is in stress (inverted), and lower in calm markets.
+//
+// Each cell = base IV + smile adjustment + term adjustment + small noise
+// ================================================================
+
+// Smile adjustment by moneyness (strike - spot) / spot
+// Negative moneyness = OTM put / ITM call → higher IV (put skew)
+function smileAdj(strike, spot) {
+  const moneyness = (strike - spot) / spot; // -0.05 to +0.05 in our range
+  // Asymmetric smile — puts get more premium than calls
+  if (moneyness < 0) {
+    // OTM puts: IV increases as strike moves further OTM
+    return Math.abs(moneyness) * 0.30; // up to ~1.5% extra IV per 5% OTM
+  } else {
+    // OTM calls: smaller premium
+    return moneyness * 0.15;
+  }
+}
+
+// Term structure adjustment by days to expiry
+// Short-dated options carry more vol in stressed markets, less in calm
+function termAdj(expDays) {
+  // Slight inversion — 7d at premium to 60d
+  const base = { 7: 0.025, 14: 0.015, 30: 0, 60: -0.010 };
+  return base[expDays] || 0;
+}
+
+// Small per-cell noise — makes surface feel alive, not perfectly smooth
+// Seeded by strike+expiry so it's stable between renders
+function cellNoise(strike, expDays) {
+  const seed = (strike * 7 + expDays * 13) % 100;
+  return (seed / 100 - 0.5) * 0.008; // ±0.4% noise
+}
+
+// Get IV for a specific strike/expiry given current market IV
+function getSurfaceIV(strike, expDays) {
+  const spot = state.stock;
+  const iv   = state.iv; // current ATM IV (affected by events)
+  return Math.max(0.05, iv + smileAdj(strike, spot) + termAdj(expDays) + cellNoise(strike, expDays));
+}
+
+// Render the IV surface grid
+function renderIVSurface(activeStrike, activeExpDays) {
+  const panel = document.getElementById('ivSurfacePanel');
+  if (!panel) return;
+
+  // Show/hide based on difficulty
+  const show = gameSettings.showIVSurface;
+  panel.style.display = show ? 'block' : 'none';
+  if (!show) return;
+
+  const table = document.getElementById('ivSurfaceTable');
+  if (!table) return;
+
+  // Header row — expiries
+  let html = '<thead><tr><th>Strike</th>';
+  EXPIRIES.forEach(e => { html += `<th>${e}d</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // One row per strike — highest strike at top (market convention)
+  [...STRIKES].reverse().forEach(strike => {
+    // Label — show moneyness
+    const spot       = state.stock;
+    const moneyness  = ((strike - spot) / spot * 100).toFixed(1);
+    const mLabel     = strike === Math.round(spot/5)*5
+      ? 'ATM'
+      : (strike < spot ? `${moneyness}%` : `+${moneyness}%`);
+
+    html += `<tr><td>$${strike} <span style="font-size:9px;color:var(--text3);">${mLabel}</span></td>`;
+
+    EXPIRIES.forEach(expDays => {
+      const iv      = getSurfaceIV(strike, expDays);
+      const ivPct   = (iv * 100).toFixed(1);
+      const isActive = strike === activeStrike && expDays === activeExpDays;
+
+      // Heat map class
+      let cls = '';
+      if      (iv < 0.22) cls = 'iv-low';
+      else if (iv < 0.28) cls = 'iv-mid';
+      else if (iv < 0.38) cls = 'iv-high';
+      else                cls = 'iv-spike';
+      if (isActive) cls += ' iv-active';
+
+      html += `<td class="${cls}">${ivPct}%</td>`;
+    });
+
+    html += '</tr>';
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  // Update subtitle
+  const atmIV = (state.iv * 100).toFixed(1);
+  document.getElementById('ivSurfaceSubtitle').textContent =
+    `ATM IV: ${atmIV}% · Put skew active`;
+}
+const payoffToggles = {
+  strikes:   true,
+  breakeven: false,
+  today:     false,
+  perpos:    false
+};
+
+function togglePayoff(key) {
+  payoffToggles[key] = !payoffToggles[key];
+  const el = document.getElementById('tog-' + key);
+  if (el) el.classList.toggle('active', payoffToggles[key]);
+  drawPayoffChart();
+}
+
+// ================================================================
+// GREEKS P&L ATTRIBUTION CHART
+// ================================================================
+function drawGreeksChart() {
+  const canvas = document.getElementById('greeksChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  const components = [
+    { label:'Delta', value: state.pnlDelta },
+    { label:'Gamma', value: state.pnlGamma },
+    { label:'Theta', value: state.pnlTheta ?? 0 },
+    { label:'Vega',  value: state.pnlVega },
+  ];
+
+  const barH   = 18;
+  const gap    = 8;
+  const labelW = 44;
+  const valW   = 54;
+  const barAreaW = W - labelW - valW;
+  const totalH   = components.length * (barH + gap) - gap;
+  const startY   = (H - totalH) / 2;
+  const maxAbs   = Math.max(...components.map(c => Math.abs(c.value)), 1);
+  const zeroX    = labelW + barAreaW / 2;
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(74,84,104,0.4)';
+  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(zeroX, startY-4); ctx.lineTo(zeroX, startY+totalH+4); ctx.stroke();
+  ctx.setLineDash([]);
+
+  components.forEach((c, i) => {
+    const y      = startY + i * (barH + gap);
+    const barLen = (Math.abs(c.value) / maxAbs) * (barAreaW / 2);
+    const barX   = c.value >= 0 ? zeroX : zeroX - barLen;
+    const alpha  = Math.abs(c.value) < 0.01 ? 0.15 : 0.8;
+
+    // Label
+    ctx.fillStyle = 'rgba(74,84,104,0.9)';
+    ctx.font = '10px IBM Plex Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText(c.label, labelW - 4, y + barH - 4);
+
+    // Bar
+    if (barLen > 0) {
+      ctx.fillStyle = c.value >= 0 ? `rgba(0,208,132,${alpha})` : `rgba(255,71,87,${alpha})`;
+      ctx.fillRect(barX, y, barLen, barH);
+    }
+
+    // Value
+    const valStr = (c.value >= 0 ? '+$' : '-$') + Math.abs(c.value).toFixed(0);
+    ctx.fillStyle = Math.abs(c.value) < 0.01 ? 'rgba(74,84,104,0.5)' : (c.value >= 0 ? '#0ca678' : '#e03131');
+    ctx.font = '10px IBM Plex Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText(valStr, zeroX + barAreaW/2 + 4, y + barH - 4);
+  });
+}
+
+// ================================================================
+// PAYOFF DIAGRAM
+// ================================================================
+function calcPayoff(stockPrice, useToday) {
+  let pnl = 0;
+  for (const key in state.positions) {
+    const pos = state.positions[key];
+    if (pos.qty === 0) continue;
+    let value;
+    if (useToday) {
+      // Use BS pricing for current value
+      const T = Math.max(0.001, pos.T);
+      value = bs(stockPrice, pos.strike, T, R, state.iv, pos.type).price;
+    } else {
+      // Expiry: intrinsic value only
+      value = pos.type === 'call'
+        ? Math.max(stockPrice - pos.strike, 0)
+        : Math.max(pos.strike - stockPrice, 0);
+    }
+    pnl += (value - pos.avgPrice) * pos.qty * 100;
+  }
+  // Stock hedge P&L
+  pnl += state.stockCash + state.stockShares * stockPrice;
+  return pnl;
+}
+
+function calcPositionPayoff(pos, stockPrice, useToday) {
+  if (pos.qty === 0) return 0;
+  let value;
+  if (useToday) {
+    const T = Math.max(0.001, pos.T);
+    value = bs(stockPrice, pos.strike, T, R, state.iv, pos.type).price;
+  } else {
+    value = pos.type === 'call'
+      ? Math.max(stockPrice - pos.strike, 0)
+      : Math.max(pos.strike - stockPrice, 0);
+  }
+  return (value - pos.avgPrice) * pos.qty * 100;
+}
+
+// Colors for per-position lines
+const POS_COLORS = ['#4a9eff','#a78bfa','#2dd4bf','#ffb020','#ff6b6b','#c3e88d'];
+
+function drawPayoffChart() {
+  const canvas = document.getElementById('payoffChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  const S    = state.stock;
+  const lo   = S * 0.85;
+  const hi   = S * 1.15;
+  const steps = 120;
+  const useToday = payoffToggles.today;
+
+  const prices = Array.from({length: steps+1}, (_, i) => lo + (hi-lo)*(i/steps));
+  const pnls   = prices.map(p => calcPayoff(p, useToday));
+
+  const hasPositions = Object.values(state.positions).some(p => p.qty !== 0) || state.stockShares !== 0;
+  if (!hasPositions) {
+    ctx.strokeStyle = 'rgba(74,84,104,0.4)';
+    ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(136,146,160,0.9)'; ctx.font='11px IBM Plex Mono';
+    ctx.textAlign='center';
+    ctx.fillText('Fill orders to see payoff diagram', W/2, H/2-8);
+    return;
+  }
+
+  const minPnl = Math.min(...pnls);
+  const maxPnl = Math.max(...pnls);
+  const range  = Math.max(maxPnl - minPnl, 1);
+  const pad    = range * 0.15;
+
+  const toX = i  => (i / steps) * W;
+  const toY = v  => H - ((v - (minPnl-pad)) / (range+2*pad)) * H;
+  const priceToX = p => ((p-lo)/(hi-lo)) * W;
+
+  // Zero line
+  const zeroY = toY(0);
+  ctx.strokeStyle='rgba(74,158,255,0.2)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(0,zeroY); ctx.lineTo(W,zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Strike markers
+  if (payoffToggles.strikes) {
+    const strikes = [...new Set(Object.values(state.positions).filter(p=>p.qty!==0).map(p=>p.strike))];
+    strikes.forEach(k => {
+      const x = priceToX(k);
+      if (x < 0 || x > W) return;
+      ctx.strokeStyle='rgba(167,139,250,0.35)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H-14); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='rgba(167,139,250,0.7)'; ctx.font='9px IBM Plex Mono';
+      ctx.textAlign='center';
+      ctx.fillText('$'+k, x, H-4);
+    });
+  }
+
+  // Per-position lines
+  if (payoffToggles.perpos) {
+    const positions = Object.values(state.positions).filter(p=>p.qty!==0);
+    positions.forEach((pos, idx) => {
+      const color = POS_COLORS[idx % POS_COLORS.length];
+      const posPnls = prices.map(p => calcPositionPayoff(pos, p, useToday));
+      ctx.strokeStyle = color; ctx.lineWidth=1; ctx.globalAlpha=0.5;
+      ctx.beginPath();
+      prices.forEach((p,i) => {
+        const x = toX(i);
+        const y = toY(posPnls[i]);
+        i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.globalAlpha=1;
+    });
+  }
+
+  // Current stock price line
+  const currentX = priceToX(S);
+  ctx.strokeStyle='rgba(255,176,32,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(currentX,0); ctx.lineTo(currentX,H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fill
+  ctx.beginPath();
+  prices.forEach((p,i) => { const x=toX(i),y=toY(pnls[i]); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.lineTo(toX(steps), zeroY); ctx.lineTo(toX(0), zeroY); ctx.closePath();
+  const grad = ctx.createLinearGradient(0, toY(maxPnl), 0, toY(minPnl));
+  const zf   = maxPnl/(maxPnl-minPnl+0.001);
+  grad.addColorStop(0, 'rgba(0,208,132,0.2)');
+  grad.addColorStop(Math.max(0,Math.min(1,zf)),   'rgba(0,208,132,0.04)');
+  grad.addColorStop(Math.max(0,Math.min(1,zf+0.001)), 'rgba(255,71,87,0.04)');
+  grad.addColorStop(1, 'rgba(255,71,87,0.2)');
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Main P&L line
+  ctx.lineWidth=2; ctx.strokeStyle='#00d084';
+  ctx.beginPath();
+  prices.forEach((p,i) => { const x=toX(i),y=toY(pnls[i]); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+
+  // Break-even labels
+  if (payoffToggles.breakeven) {
+    const bePoints = [];
+    for (let i=0; i<pnls.length-1; i++) {
+      if ((pnls[i] < 0 && pnls[i+1] >= 0) || (pnls[i] >= 0 && pnls[i+1] < 0)) {
+        // Linear interpolation for exact crossover price
+        const t = -pnls[i] / (pnls[i+1] - pnls[i]);
+        const bePrice = prices[i] + t * (prices[i+1] - prices[i]);
+        bePoints.push(bePrice);
+      }
+    }
+    bePoints.forEach(beP => {
+      const x = priceToX(beP);
+      if (x < 0 || x > W) return;
+      ctx.strokeStyle='rgba(74,158,255,0.6)'; ctx.lineWidth=1; ctx.setLineDash([2,2]);
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H-14); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='var(--blue)'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='center';
+      ctx.fillText('BE $'+beP.toFixed(0), x, 10);
+    });
+  }
+
+  // Current P&L label
+  const currentPnl = calcPayoff(S, useToday);
+  const labelY = Math.max(14, Math.min(H-4, toY(currentPnl)-6));
+  ctx.fillStyle = currentPnl>=0?'#00d084':'#ff4757';
+  ctx.font='10px IBM Plex Mono';
+  ctx.textAlign = currentX > W*0.7 ? 'right' : 'left';
+  ctx.fillText((currentPnl>=0?'+$':'-$')+Math.abs(currentPnl).toFixed(0), currentX+(currentX>W*0.7?-6:6), labelY);
+
+  // Price axis
+  ctx.fillStyle='rgba(74,84,104,0.9)'; ctx.font='9px IBM Plex Mono';
+  ctx.textAlign='left';  ctx.fillText('$'+lo.toFixed(0), 4, H-3);
+  ctx.textAlign='right'; ctx.fillText('$'+hi.toFixed(0), W-4, H-3);
+  ctx.textAlign='center';ctx.fillText('$'+S.toFixed(0), Math.min(W-20, Math.max(20, currentX)), H-3);
+
+  // Update title label
+  const cpEl = document.getElementById('payoffCurrentPx');
+  if (cpEl) cpEl.textContent = (useToday?'Today':'Expiry') + ' · S: $'+S.toFixed(2);
+}
+function updateRankBadge() {
+  const yourPnl = state.spreadIncome + state.greeksPnl;
+  const allPnls = [yourPnl, ...bots.map(b => b.spreadIncome)].sort((a,b) => b-a);
+  const rank    = allPnls.indexOf(yourPnl) + 1;
+  const el      = document.getElementById('rankDisplay');
+  if (el) {
+    el.textContent = `#${rank} of 5`;
+    el.className   = 'hstat-val ' + (rank===1?'pos':rank<=3?'neu':'neg');
+  }
+}
+
+// ================================================================
+// LEARN MODE
+// ================================================================
+function goToLearn() {
+  document.getElementById('welcomeScreen').style.display = 'none';
+  document.getElementById('learnScreen').classList.add('visible');
+  switchLearnTab('htp');
+}
+
+function closeLearn() {
+  document.getElementById('learnScreen').classList.remove('visible');
+  document.getElementById('welcomeScreen').style.display = 'flex';
+}
+
+function switchLearnTab(tab) {
+  document.getElementById('learn-htp').style.display  = tab==='htp'  ? 'block' : 'none';
+  document.getElementById('learn-defs').style.display = tab==='defs' ? 'block' : 'none';
+  document.getElementById('tab-htp').classList.toggle('active',  tab==='htp');
+  document.getElementById('tab-defs').classList.toggle('active', tab==='defs');
+}
+
+function toggleDef(id) {
+  const card = document.getElementById('def-'+id);
+  if (card) card.classList.toggle('open');
+}
+
+// Game settings object — read by game on start
+const gameSettings = {
+  showFairValue:  true,
+  showCheapRich:  true,
+  preFillQuotes:  true,
+  feedbackOn:     true,
+  showIVSurface:  false,
+  events:         'off',   // 'off' | 'mild' | 'full'
+  eventAdvice:    true,
+  sessionLength:  300,     // seconds
+  orderTimer:     10,      // seconds
+};
+
+const PRESETS = {
+  easy:     { showFairValue:true,  showCheapRich:true,  preFillQuotes:true,  feedbackOn:true,  showIVSurface:false, events:'off',  eventAdvice:true,  orderTimer:20, sessionLength:300 },
+  medium:   { showFairValue:true,  showCheapRich:false, preFillQuotes:true,  feedbackOn:true,  showIVSurface:false, events:'mild', eventAdvice:true,  orderTimer:15, sessionLength:300 },
+  hard:     { showFairValue:true,  showCheapRich:false, preFillQuotes:false, feedbackOn:false, showIVSurface:true,  events:'full', eventAdvice:false, orderTimer:10, sessionLength:300 },
+  veryhard: { showFairValue:false, showCheapRich:false, preFillQuotes:false, feedbackOn:false, showIVSurface:true,  events:'full', eventAdvice:false, orderTimer:8,  sessionLength:300 },
+};
+
+let activePreset = 'easy';
+
+function applyPreset(name) {
+  activePreset = name;
+  const p = PRESETS[name];
+  // Update toggles
+  document.getElementById('tog-fairvalue').checked  = p.showFairValue;
+  document.getElementById('tog-cheaprich').checked  = p.showCheapRich;
+  document.getElementById('tog-prefill').checked    = p.preFillQuotes;
+  document.getElementById('tog-feedback').checked   = p.feedbackOn;
+  document.getElementById('tog-ivsurface').checked  = p.showIVSurface;
+  document.getElementById('sel-events').value       = p.events;
+  document.getElementById('tog-eventadvice').checked= p.eventAdvice;
+  // Update sliders
+  document.getElementById('sl-timer').value         = p.orderTimer;
+  document.getElementById('sl-timer-val').textContent = p.orderTimer + 's';
+  // Highlight active preset — keep color class, just toggle active
+  ['easy','medium','hard','veryhard'].forEach(d => {
+    const el = document.getElementById('preset-'+d);
+    if (el) el.classList.toggle('active', d===name);
+  });
+  // Hide custom badge
+  document.getElementById('customBadge').classList.remove('show');
+}
+
+function onToggleChange() {
+  // Mark as custom when any toggle differs from active preset
+  activePreset = 'custom';
+  ['easy','medium','hard','veryhard'].forEach(d => {
+    document.getElementById('preset-'+d).classList.remove('active');
+  });
+  document.getElementById('customBadge').classList.add('show');
+}
+
+function readSettings() {
+  gameSettings.showFairValue  = document.getElementById('tog-fairvalue').checked;
+  gameSettings.showCheapRich  = document.getElementById('tog-cheaprich').checked;
+  gameSettings.preFillQuotes  = document.getElementById('tog-prefill').checked;
+  gameSettings.feedbackOn     = document.getElementById('tog-feedback').checked;
+  gameSettings.showIVSurface  = document.getElementById('tog-ivsurface').checked;
+  gameSettings.events         = document.getElementById('sel-events').value;
+  gameSettings.eventAdvice    = document.getElementById('tog-eventadvice').checked;
+  gameSettings.sessionLength  = parseInt(document.getElementById('sl-session').value) * 60;
+  gameSettings.orderTimer     = parseInt(document.getElementById('sl-timer').value);
+}
+
+function startFromWelcome() {
+  readSettings();
+  // Apply settings to game
+  feedbackOn = gameSettings.feedbackOn;
+  // Map events setting to diffMode for existing event system
+  if      (gameSettings.events === 'off')  diffMode = 'easy';
+  else if (gameSettings.events === 'mild') diffMode = 'medium';
+  else                                     diffMode = 'hard';
+  // Update feedback button state
+  const fbBtn = document.getElementById('feedbackBtn');
+  if (fbBtn) {
+    fbBtn.textContent   = feedbackOn ? 'Feedback: ON' : 'Feedback: OFF';
+    fbBtn.style.color   = feedbackOn ? 'var(--green)' : 'var(--text3)';
+    fbBtn.style.borderColor = feedbackOn ? 'var(--green2)' : 'var(--border2)';
+  }
+  // Hide welcome, start game
+  document.getElementById('welcomeScreen').style.display = 'none';
+  startGame();
+}
+
+// goToLearn is defined in learn mode section above
+
+function startGame() {
+  // Reset state fully
+  bots.forEach(b=>{ b.cash=0; b.inventory=0; b.trades=0; b.spreadIncome=0; });
+  Object.assign(state, {
+    stock:185.00, stockHistory:[185.00], iv:TRUE_IV, prevStock:185.00, prevIV:TRUE_IV,
+    positions:{}, stockShares:0, stockAvgCost:0, stockCash:0, hedgeTrades:0,
+    spreadIncome:0, greeksPnl:0, pnlDelta:0, pnlGamma:0, pnlVega:0, pnlTheta:0,
+    trades:0, passed:0, lostToBot:0,
+    totalAvailableEdge:0, totalCapturedEdge:0,
+    blotter:[], timeLeft:gameSettings.sessionLength,
+    currentOrder:null, running:true,
+    tickCount:0, regime:'low', recentMoves:[], regimeLocked:false
+  });
+  // Update timer display
+  const m = Math.floor(state.timeLeft/60), s = state.timeLeft%60;
+  document.getElementById('gameTimer').textContent = m+':'+String(s).padStart(2,'0');
+  // Start loops
+  clearInterval(state.gameInterval);
+  clearInterval(state.timerInterval);
+  state.gameInterval  = setInterval(()=>{ tickPrice(); }, 3000);
+  state.timerInterval = setInterval(()=>{
+    state.timeLeft--;
+    const m=Math.floor(state.timeLeft/60), s=state.timeLeft%60;
+    document.getElementById('gameTimer').textContent=m+':'+String(s).padStart(2,'0');
+    if (state.timeLeft<=0) endGame();
+  }, 1000);
+  updateHeader(); renderGreeks(); renderHedgePanel();
+  updateRankBadge(); renderIVSurface(); drawPayoffChart();
+  startEventScheduler();
+  scheduleNextOrder(1500);
+}
+const MARKET_EVENTS = [
+  {
+    id:'earnings', tag:'EARNINGS SURPRISE', cls:'earnings',
+    desc:(d)=>`Stock ${d.dir>0?'surged':'dropped'} ${Math.abs(d.pct).toFixed(1)}% on surprise earnings. New price: $${d.newPrice.toFixed(2)}.`,
+    advice:()=>`Re-hedge your delta immediately — the stock move has changed your directional exposure significantly.`,
+    fire(mild) {
+      const pct=((mild?0.04:0.07)+Math.random()*0.03), dir=Math.random()>0.5?1:-1;
+      const newPrice=Math.max(150,Math.min(220,state.stock*(1+dir*pct)));
+      state.prevStock=state.stock; state.stock=newPrice; state.stockHistory.push(state.stock);
+      return {pct:pct*100,dir,newPrice};
+    }
+  },
+  {
+    id:'ivspike', tag:'IV SPIKE', cls:'ivspike',
+    desc:(d)=>`Implied volatility surged from ${d.oldIV.toFixed(1)}% to ${d.newIV.toFixed(1)}%. Market pricing in significant uncertainty.`,
+    advice:()=>`Short options positions are offside on vega. Consider reducing short exposure or buying options to offset.`,
+    fire(mild) {
+      const oldIV=state.iv*100, spike=mild?0.10+Math.random()*0.10:0.20+Math.random()*0.15;
+      state.prevIV=state.iv; state.iv=Math.min(0.80,state.iv+spike);
+      state.regime='high'; state.regimeLocked=true;
+      let steps=0, totalSteps=20;
+      const revertAmount = spike * 0.7 / totalSteps;
+      const revertInterval = setInterval(()=>{
+        if (!state.running||steps>=totalSteps){
+          clearInterval(revertInterval);
+          state.regime='low'; state.regimeLocked=false;
+          return;
+        }
+        state.iv=Math.max(TRUE_IV, state.iv-revertAmount);
+        steps++;
+      }, 3000);
+      return {oldIV,newIV:state.iv*100};
+    }
+  },
+  {
+    id:'flash', tag:'FLASH CRASH', cls:'flash',
+    desc:(d)=>`Market dislocated — stock fell ${Math.abs(d.pct).toFixed(1)}% in seconds to $${d.newPrice.toFixed(2)}. Partial recovery expected.`,
+    advice:()=>`Large moves hurt short gamma positions. Flatten delta and widen your spreads until volatility settles.`,
+    fire(mild) {
+      const totalPct = (mild?0.04:0.08)+Math.random()*0.04;
+      const steps    = 4;
+      const perStep  = totalPct / steps;
+      let   step     = 0;
+
+      // Cascade down over 4 rapid ticks at 500ms each
+      const cascade = setInterval(()=>{
+        if (!state.running||step>=steps){ clearInterval(cascade); return; }
+        state.prevStock = state.stock;
+        state.stock     = Math.max(150, state.stock*(1-perStep));
+        state.stockHistory.push(state.stock);
+        step++;
+      }, 500);
+
+      // Partial recovery after 15s — also cascade up over 3 ticks
+      const finalPrice = state.stock * (1 - totalPct); // approximate
+      setTimeout(()=>{
+        if (!state.running) return;
+        const recoveryPct = (Math.random()*0.25+0.15)*totalPct;
+        const recSteps = 3;
+        let recStep = 0;
+        const recover = setInterval(()=>{
+          if (!state.running||recStep>=recSteps){ 
+            clearInterval(recover);
+            state.regime='low'; state.regimeLocked=false;
+            return; 
+          }
+          state.prevStock = state.stock;
+          state.stock     = Math.min(220, state.stock*(1+recoveryPct/recSteps));
+          state.stockHistory.push(state.stock);
+          recStep++;
+        }, 500);
+      }, 15000);
+
+      state.regime='high'; state.regimeLocked=true;
+      const newPrice = state.stock*(1-totalPct);
+      return {pct:totalPct*100, newPrice};
+    }
+  },
+  {
+    id:'volcrush', tag:'VOL CRUSH', cls:'volcrush',
+    desc:(d)=>`Implied volatility collapsed from ${d.oldIV.toFixed(1)}% to ${d.newIV.toFixed(1)}%. Market uncertainty resolved.`,
+    advice:()=>`Long options lost value on vega. Short options benefited. Good time to sell into the lower vol environment.`,
+    fire(mild) {
+      const oldIV=state.iv*100, crush=mild?0.06+Math.random()*0.04:0.10+Math.random()*0.08;
+      state.prevIV=state.iv; state.iv=Math.max(0.08,state.iv-crush);
+      // Gradual reversion back toward TRUE_IV
+      let steps=0, totalSteps=20;
+      const revertAmount = crush * 0.5 / totalSteps;
+      const revertInterval = setInterval(()=>{
+        if (!state.running||steps>=totalSteps){clearInterval(revertInterval);return;}
+        state.iv=Math.min(TRUE_IV, state.iv+revertAmount);
+        steps++;
+      }, 3000);
+      return {oldIV,newIV:state.iv*100};
+    }
+  },
+  {
+    id:'sector', tag:'SECTOR SHOCK', cls:'sector',
+    desc:(d)=>`Sector-wide move — stock drifting ${d.dir>0?'up':'down'} ${Math.abs(d.pct).toFixed(1)}% on macro news. IV rising modestly.`,
+    advice:()=>`Gradual move — monitor delta drift. Your hedge will go stale. Check payoff diagram for break-even levels.`,
+    fire(mild) {
+      const pct=(mild?0.02:0.04)+Math.random()*0.02, dir=Math.random()>0.5?1:-1;
+      const target=Math.max(150,Math.min(220,state.stock*(1+dir*pct)));
+      let ticks=0;
+      const drift=setInterval(()=>{
+        if(!state.running||ticks>=5){clearInterval(drift);return;}
+        state.prevStock=state.stock; state.stock=state.stock+(target-state.stock)*0.4;
+        state.stockHistory.push(state.stock); ticks++;
+      },3000);
+      state.iv=Math.min(0.60,state.iv+0.03);
+      return {pct:pct*100,dir};
+    }
+  }
+];
+
+let eventInterval=null, bannerTimeout=null, lastEventTime=0;
+
+function showEventBanner(event, data) {
+  const showAdvice = gameSettings.eventAdvice;
+  document.getElementById('eventTag').textContent   = event.tag;
+  document.getElementById('eventTag').className     = 'event-tag '+event.cls;
+  document.getElementById('eventDesc').textContent  = event.desc(data);
+  const advEl = document.getElementById('eventAdvice');
+  advEl.textContent    = showAdvice ? event.advice(data) : '';
+  advEl.style.display  = showAdvice ? 'block' : 'none';
+  document.getElementById('eventBannerInner').className = 'event-banner-inner '+event.cls;
+  const banner = document.getElementById('eventBanner');
+  banner.classList.add('visible');
+  clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(()=>banner.classList.remove('visible'), 6000);
+}
+
+// Fire a specific event by ID — bypasses cooldown, for testing only
+function fireSpecificEvent(id) {
+  const event = MARKET_EVENTS.find(e => e.id === id);
+  if (!event) return;
+  const mild = (diffMode === 'medium');
+  const data = event.fire(mild);
+  lastEventTime = Date.now();
+  showEventBanner(event, data);
+  recalcGreeksPnl(); updateHeader(); renderGreeks();
+  renderHedgePanel(); renderPositions(); renderIVSurface(); drawGreeksChart(); drawPayoffChart();
+}
+
+function fireRandomEvent() {
+  if (!state.running) return;
+  if (diffMode==='easy') return;
+
+  const minGap = diffMode==='veryhard' ? 30000 : 45000;
+  const now    = Date.now();
+  if (now - lastEventTime < minGap) return;
+  lastEventTime = now;
+
+  const mild  = (diffMode==='medium');
+  const event = MARKET_EVENTS[Math.floor(Math.random()*MARKET_EVENTS.length)];
+  const data  = event.fire(mild);
+  showEventBanner(event, data);
+  recalcGreeksPnl(); updateHeader(); renderGreeks();
+  renderHedgePanel(); renderPositions(); renderIVSurface(); drawGreeksChart(); drawPayoffChart();
+}
+
+function startEventScheduler() {
+  if (diffMode==='easy') return;
+  clearInterval(eventInterval);
+  lastEventTime = 0;
+
+  // First event: 25-45s after start
+  const firstDelay = 25000 + Math.random()*20000;
+
+  setTimeout(()=>{
+    if (!state.running) return;
+    fireRandomEvent();
+    // Subsequent events: every 45-75s (30-60s for Very Hard)
+    const minMs = diffMode==='veryhard' ? 30000 : 45000;
+    const maxMs = diffMode==='veryhard' ? 60000 : 75000;
+    eventInterval = setInterval(()=>{
+      if (!state.running) return;
+      fireRandomEvent();
+    }, minMs + Math.random()*(maxMs-minMs));
+  }, firstDelay);
+}
+
+function stopEventScheduler() {
+  clearInterval(eventInterval);
+  clearTimeout(bannerTimeout);
+  document.getElementById('eventBanner')?.classList.remove('visible');
+}
+
+// ================================================================
+// BLOTTER
+// ================================================================
+function renderBlotter(tbodyId) {
+  const id    = tbodyId || 'blotterBody';
+  const tbody = document.getElementById(id);
+  if (!tbody) return;
+
+  const isGameOver = id !== 'blotterBody';
+  const entries    = isGameOver ? state.blotter : state.blotter.slice(0, 15);
+  const colSpan    = isGameOver ? 7 : 4;
+
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center;padding:20px;color:var(--text3);">No trades yet</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = entries.map(t => {
+    // ---- GAME OVER FULL ROWS ----
+    if (isGameOver) {
+      if (t.result==='lost') return `<tr class="b-lost">
+        <td>${t.key}</td>
+        <td style="color:var(--amber);text-align:right;">LOST</td>
+        <td>—</td>
+        <td>$${t.price?t.price.toFixed(2):'—'}</td>
+        <td>$${t.fairPrice?t.fairPrice.toFixed(2):'—'}</td>
+        <td style="color:var(--amber);">${t.botPrice?'$'+t.botPrice.toFixed(2):''} ${t.botName||''}</td>
+        <td></td>
+      </tr>`;
+      if (t.result==='passed') {
+        const resultLabel = t.botName ? 'BOT FILL' : 'PASS';
+        const resultColor = t.botName ? 'var(--amber)' : 'var(--text3)';
+        const botNote     = t.botName ? `${t.botName} @ $${t.botPrice?t.botPrice.toFixed(2):'?'}` : 'no fill';
+        const dl = t.correct
+          ? `<span style="color:var(--green);font-size:10px;">✓ Right pass</span>`
+          : `<span style="color:var(--red);font-size:10px;">✗ Missed edge</span>`;
+        return `<tr class="b-passed">
+          <td>${t.key}</td>
+          <td style="color:${resultColor};text-align:right;">${resultLabel}</td>
+          <td>—</td><td>—</td>
+          <td>$${t.fairPrice?t.fairPrice.toFixed(2):'—'}</td>
+          <td style="color:var(--amber);">${botNote}</td>
+          <td>${dl}</td>
+        </tr>`;
+      }
+      const ec = t.edge>=0?'var(--green)':'var(--red)';
+      const sc = t.ourSide==='BUY'?'var(--green)':'var(--red)';
+      const dl = t.edge>0
+        ? `<span style="color:var(--green);font-size:10px;">✓ Good fill</span>`
+        : t.edge<0
+          ? `<span style="color:var(--red);font-size:10px;">✗ Wrong side</span>`
+          : `<span style="color:var(--text3);font-size:10px;">— Fair</span>`;
+      return `<tr>
+        <td>${t.key}</td>
+        <td style="color:${sc};text-align:right;font-weight:600;">${t.ourSide}</td>
+        <td>$${t.price.toFixed(2)}</td>
+        <td>$${t.fairPrice?t.fairPrice.toFixed(2):'—'}</td>
+        <td style="color:${ec};">${t.edge>=0?'+$':'-$'}${Math.abs(t.edge).toFixed(0)}</td>
+        <td></td>
+        <td>${dl}</td>
+      </tr>`;
+    }
+
+    // ---- SLIM LIVE BLOTTER (4 columns: Contract, Side, Price, Edge) ----
+    if (t.result==='lost') return `<tr style="display:table;width:100%;table-layout:fixed;" class="b-lost">
+      <td>${t.key}</td>
+      <td style="color:var(--amber);text-align:right;font-size:10px;">LOST</td>
+      <td>—</td>
+      <td style="color:var(--amber);font-size:10px;">${t.botName||''}</td>
+    </tr>`;
+    if (t.result==='passed') {
+      const lbl   = t.botName ? 'BOT' : 'PASS';
+      const color = t.botName ? 'var(--amber)' : 'var(--text3)';
+      const note  = t.botName ? `${t.botName}` : '—';
+      return `<tr style="display:table;width:100%;table-layout:fixed;" class="b-passed">
+        <td>${t.key}</td>
+        <td style="color:${color};text-align:right;font-size:10px;">${lbl}</td>
+        <td>—</td>
+        <td style="color:${color};font-size:10px;">${note}</td>
+      </tr>`;
+    }
+    const ec = t.edge>=0?'var(--green)':'var(--red)';
+    const sc = t.ourSide==='BUY'?'var(--green)':'var(--red)';
+    return `<tr style="display:table;width:100%;table-layout:fixed;">
+      <td>${t.key}</td>
+      <td style="color:${sc};text-align:right;font-weight:600;">${t.ourSide}</td>
+      <td>$${t.price.toFixed(2)}</td>
+      <td style="color:${ec};">${t.edge>=0?'+$':'-$'}${Math.abs(t.edge).toFixed(0)}</td>
+    </tr>`;
+  }).join('');
+
+  // Edge capture rate
+  const rate  = state.totalAvailableEdge > 0
+    ? Math.round((state.totalCapturedEdge/state.totalAvailableEdge)*100) : 0;
+  const rateEl = document.getElementById('edgeCaptureRate');
+  if (rateEl) rateEl.textContent = state.blotter.length ? rate+'%' : '—';
+}
+
+function fmt(n) { return (n>=0?'+$':'-$')+Math.abs(n).toFixed(2); }
+
+// ================================================================
+// ORDER TIMER
+// ================================================================
+let orderTimerInterval=null, orderTimeLeft=10;
+
+function scheduleNextOrder(delay) {
+  state.currentOrder=null;
+  setTimeout(()=>{
+    if (!state.running) return;
+    state.currentOrder=generateOrder();
+    renderOrder(state.currentOrder);
+    updateRankBadge();
+    startOrderTimer();
+  }, delay);
+}
+
+function startOrderTimer() {
+  const dur=getOrderTimer();
+  orderTimeLeft=dur;
+  clearInterval(orderTimerInterval);
+  orderTimerInterval=setInterval(()=>{
+    orderTimeLeft-=0.1;
+    const pct=(orderTimeLeft/dur)*100;
+    const bar=document.getElementById('timerBar');
+    const disp=document.getElementById('orderTimerDisp');
+    if (bar)  bar.style.width=pct+'%';
+    if (disp) disp.textContent=Math.ceil(orderTimeLeft);
+    if (orderTimeLeft<=3&&bar) bar.style.background='var(--red)';
+    if (orderTimeLeft<=0) passOrder();
+  },100);
+}
+
+function clearOrderTimer() {
+  clearInterval(orderTimerInterval);
+  state.currentOrder=null;
+}
+
+// ================================================================
+// GAME LOOP
+// ================================================================
+state.gameInterval=setInterval(()=>{ tickPrice(); },3000);
+state.timerInterval=setInterval(()=>{
+  state.timeLeft--;
+  const m=Math.floor(state.timeLeft/60), s=state.timeLeft%60;
+  document.getElementById('gameTimer').textContent=m+':'+String(s).padStart(2,'0');
+  if (state.timeLeft<=0) endGame();
+},1000);
+startEventScheduler();
+
+// ================================================================
+// END GAME
+// ================================================================
+function endGame() {
+  state.running=false;
+  clearInterval(state.gameInterval);
+  clearInterval(state.timerInterval);
+  clearInterval(orderTimerInterval);
+  stopEventScheduler();
+
+  const totalPnl = state.spreadIncome + state.greeksPnl;
+  const rate     = state.totalAvailableEdge > 0
+    ? Math.round((state.totalCapturedEdge/state.totalAvailableEdge)*100) : 0;
+
+  // Rankings
+  const yourPnl  = totalPnl;
+  const entries  = [
+    { name:'YOU', isYou:true, pnl:yourPnl, trades:state.trades },
+    ...bots.map(b=>({ name:b.name, isYou:false, pnl:b.spreadIncome, trades:b.trades }))
+  ].sort((a,b)=>b.pnl-a.pnl);
+  const rank = entries.findIndex(e=>e.isYou) + 1;
+
+  // Header stats
+  document.getElementById('goPnl').textContent = fmt(totalPnl);
+  document.getElementById('goPnl').style.color = totalPnl>=0?'var(--green)':'var(--red)';
+  document.getElementById('goSpread').textContent = fmt(state.spreadIncome);
+  document.getElementById('goSpread').className   = 'go-cell-val '+(state.spreadIncome>=0?'pos':'neg');
+  document.getElementById('goGreeks').textContent  = fmt(state.greeksPnl);
+  document.getElementById('goGreeks').className    = 'go-cell-val '+(state.greeksPnl>=0?'pos':'neg');
+  document.getElementById('goEdge').textContent    = state.blotter.length ? rate+'%' : '—';
+  document.getElementById('goRank').textContent    = `#${rank} of 5`;
+  document.getElementById('goFilled').textContent  = state.trades;
+  document.getElementById('goLost').textContent    = state.lostToBot;
+  document.getElementById('goPassed').textContent  = state.passed;
+  document.getElementById('goHedges').textContent  = state.hedgeTrades;
+
+  // Decision quality breakdown
+  const filled   = state.blotter.filter(t=>t.result==='filled');
+  const passed   = state.blotter.filter(t=>t.result==='passed');
+  const lost     = state.blotter.filter(t=>t.result==='lost');
+
+  const goodFills    = filled.filter(t=>t.edge>=0).length;
+  const badFills     = filled.filter(t=>t.edge<0).length;
+  const correctPass  = passed.filter(t=>t.correct).length;
+  const missedEdge   = passed.filter(t=>!t.correct).length + lost.length;
+  const totalDecisions = state.blotter.length;
+  const correctTotal = goodFills + correctPass;
+  const decisionRate = totalDecisions > 0 ? Math.round((correctTotal/totalDecisions)*100) : 0;
+
+  document.getElementById('goDecisionGrid').style.gridTemplateColumns = 'repeat(6,1fr)';
+  document.getElementById('goDecisionGrid').innerHTML = `
+    <div class="go-cell">
+      <div class="go-cell-label">Decision Rate</div>
+      <div class="go-cell-val" style="color:${decisionRate>=70?'var(--green)':decisionRate>=50?'var(--amber)':'var(--red)'}">${decisionRate}%</div>
+    </div>
+    <div class="go-cell">
+      <div class="go-cell-label">Good Fills ✓</div>
+      <div class="go-cell-val pos">${goodFills}</div>
+    </div>
+    <div class="go-cell">
+      <div class="go-cell-label">Bad Fills ✗</div>
+      <div class="go-cell-val neg">${badFills}</div>
+    </div>
+    <div class="go-cell">
+      <div class="go-cell-label">Correct Passes</div>
+      <div class="go-cell-val pos">${correctPass}</div>
+    </div>
+    <div class="go-cell">
+      <div class="go-cell-label">Missed Edge</div>
+      <div class="go-cell-val neg">${missedEdge}</div>
+    </div>
+    <div class="go-cell">
+      <div class="go-cell-label">Avg Edge / Fill</div>
+      <div class="go-cell-val ${state.trades>0&&(state.spreadIncome/state.trades)>=0?'pos':'neg'}">
+        ${state.trades>0?fmt(state.spreadIncome/state.trades):'—'}
+      </div>
+    </div>`;
+
+  // Leaderboard
+  document.getElementById('goLeaderboard').innerHTML = entries.map((e,i) => `
+    <div class="go-lb-card ${e.isYou?'you':''}">
+      <div class="go-lb-name" style="color:${e.isYou?'var(--blue)':'var(--text)'}">#${i+1} ${e.name}</div>
+      <div class="go-lb-pnl ${e.pnl>=0?'pos':'neg'}">${fmt(e.pnl)}</div>
+      <div class="go-lb-sub">${e.trades} trades</div>
+    </div>`).join('');
+
+  // Full blotter on game over screen
+  renderBlotter('goBlotterBody');
+
+  document.getElementById('gameOver').style.display='flex';
+  document.getElementById('gameOver').scrollTop=0;
+}
+
+function playAgain() {
+  document.getElementById('gameOver').style.display='none';
+  document.getElementById('orderCard').innerHTML='<div class="order-idle">Starting...</div>';
+  startGame();
+}
+
+function goToMenu() {
+  document.getElementById('gameOver').style.display='none';
+  document.getElementById('welcomeScreen').style.display='flex';
+}
+
+// ---- INIT — show welcome screen, don't auto-start ----
+updateHeader();
+renderGreeks();
+renderHedgePanel();
+updateRankBadge();
+// Apply default preset (easy) to welcome screen sliders
+applyPreset('easy');
+</script>
+</body>
+</html>
